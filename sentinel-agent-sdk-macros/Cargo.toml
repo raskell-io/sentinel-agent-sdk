@@ -1,0 +1,16 @@
+[package]
+name = "sentinel-agent-sdk-macros"
+version = "0.1.0"
+edition = "2021"
+authors = ["Raskell <hello@raskell.io>"]
+description = "Derive macros for sentinel-agent-sdk"
+license = "Apache-2.0"
+repository = "https://github.com/raskell-io/sentinel-agent-sdk"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full", "parsing"] }
