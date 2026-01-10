@@ -232,12 +232,20 @@ Create a permanent redirect (301).
 Decision::redirect_permanent("https://example.com/new-path")
 ```
 
-#### `challenge(challenge_type: &str, params: serde_json::Value)`
+#### `challenge(challenge_type: &str, params: HashMap<String, String>)`
 
-Create a challenge decision (e.g., CAPTCHA).
+Create a challenge decision (e.g., CAPTCHA, JavaScript challenge).
 
 ```rust
-Decision::challenge("captcha", json!({"site_key": "..."}))
+use std::collections::HashMap;
+
+// Simple challenge with no params
+Decision::challenge("js_challenge", HashMap::new())
+
+// Challenge with parameters
+let mut params = HashMap::new();
+params.insert("site_key".to_string(), "abc123".to_string());
+Decision::challenge("captcha", params)
 ```
 
 ### Chaining Methods
@@ -360,28 +368,39 @@ Indicate that more data is needed before deciding.
 Decision::allow().needs_more_data()
 ```
 
-#### `with_routing_metadata(key: &str, value: serde_json::Value)`
+#### `with_routing_metadata(key: &str, value: &str)`
 
 Add routing metadata for upstream selection.
 
 ```rust
-Decision::allow().with_routing_metadata("upstream", json!("backend-v2"))
+Decision::allow().with_routing_metadata("upstream", "backend-v2")
 ```
 
-#### `with_request_body_mutation(data: Vec<u8>)`
+#### `with_request_body_mutation(mutation: BodyMutation)`
 
 Set a mutation for the request body.
 
 ```rust
-Decision::allow().with_request_body_mutation(b"modified body".to_vec())
+use sentinel_agent_protocol::BodyMutation;
+
+// Replace chunk content
+Decision::allow().with_request_body_mutation(BodyMutation::replace(0, "modified body".to_string()))
+
+// Drop a chunk
+Decision::allow().with_request_body_mutation(BodyMutation::drop_chunk(0))
+
+// Pass through unchanged
+Decision::allow().with_request_body_mutation(BodyMutation::pass_through(0))
 ```
 
-#### `with_response_body_mutation(data: Vec<u8>)`
+#### `with_response_body_mutation(mutation: BodyMutation)`
 
 Set a mutation for the response body.
 
 ```rust
-Decision::allow().with_response_body_mutation(b"modified body".to_vec())
+use sentinel_agent_protocol::BodyMutation;
+
+Decision::allow().with_response_body_mutation(BodyMutation::replace(0, "modified body".to_string()))
 ```
 
 ---

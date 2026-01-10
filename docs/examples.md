@@ -536,6 +536,85 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+## Bot Protection with Challenge
+
+Issue challenges to suspicious requests:
+
+```rust
+use sentinel_agent_sdk::prelude::*;
+use std::collections::HashMap;
+
+struct BotProtectionAgent {
+    suspicious_user_agents: Vec<&'static str>,
+    captcha_site_key: String,
+}
+
+impl BotProtectionAgent {
+    fn new(site_key: &str) -> Self {
+        Self {
+            suspicious_user_agents: vec![
+                "curl", "wget", "python-requests", "scrapy", "bot",
+            ],
+            captcha_site_key: site_key.to_string(),
+        }
+    }
+
+    fn is_suspicious(&self, user_agent: &str) -> bool {
+        let ua_lower = user_agent.to_lowercase();
+        self.suspicious_user_agents.iter().any(|s| ua_lower.contains(s))
+    }
+}
+
+#[async_trait]
+impl Agent for BotProtectionAgent {
+    fn name(&self) -> &str {
+        "bot-protection"
+    }
+
+    async fn on_request(&self, request: &Request) -> Decision {
+        // Check for missing or suspicious User-Agent
+        let user_agent = match request.user_agent() {
+            Some(ua) => ua,
+            None => {
+                // No User-Agent - issue JavaScript challenge
+                return Decision::challenge("js_challenge", HashMap::new())
+                    .with_tag("no-user-agent");
+            }
+        };
+
+        // Check for known bot patterns
+        if self.is_suspicious(user_agent) {
+            let mut params = HashMap::new();
+            params.insert("site_key".to_string(), self.captcha_site_key.clone());
+            params.insert("action".to_string(), "bot_check".to_string());
+
+            return Decision::challenge("captcha", params)
+                .with_tag("suspicious-ua")
+                .with_confidence(0.75);
+        }
+
+        // Check for high request rate from single IP (simplified)
+        if request.header("x-high-rate").is_some() {
+            let mut params = HashMap::new();
+            params.insert("difficulty".to_string(), "medium".to_string());
+
+            return Decision::challenge("proof_of_work", params)
+                .with_tag("rate-challenge");
+        }
+
+        Decision::allow()
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    AgentRunner::new(BotProtectionAgent::new("your-captcha-site-key"))
+        .with_socket("/tmp/bot-protection.sock")
+        .run()
+        .await
+}
+```
+
 ## Combining Multiple Checks
 
 Agent that performs multiple validations:
