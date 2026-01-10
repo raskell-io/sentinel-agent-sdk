@@ -6,7 +6,8 @@
 use crate::{Decision, Request, Response};
 use async_trait::async_trait;
 use sentinel_agent_protocol::{
-    AgentResponse, Decision as ProtocolDecision, PROTOCOL_VERSION,
+    AgentResponse, Decision as ProtocolDecision, GuardrailInspectEvent, GuardrailResponse,
+    PROTOCOL_VERSION,
 };
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -99,6 +100,18 @@ pub trait Agent: Send + Sync + 'static {
     /// * `duration_ms` - Total request processing time in milliseconds
     async fn on_request_complete(&self, request: &Request, status: u16, duration_ms: u64) {
         let _ = (request, status, duration_ms);
+    }
+
+    /// Inspect content for guardrail violations.
+    ///
+    /// Called when content needs to be analyzed for prompt injection
+    /// or PII detection. Override to implement custom guardrail logic.
+    ///
+    /// # Arguments
+    /// * `event` - The guardrail inspection event containing content and parameters
+    async fn on_guardrail_inspect(&self, event: &GuardrailInspectEvent) -> GuardrailResponse {
+        let _ = event;
+        GuardrailResponse::clean()
     }
 }
 
@@ -294,6 +307,52 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
 
         AgentResponse::default_allow()
     }
+
+    async fn on_guardrail_inspect(
+        &self,
+        event: GuardrailInspectEvent,
+    ) -> AgentResponse {
+        let response = self.agent.on_guardrail_inspect(&event).await;
+
+        // Build response with guardrail_response in audit.custom
+        let tags = if response.detected {
+            vec!["guardrail_detected".to_string()]
+        } else {
+            vec![]
+        };
+
+        let rule_ids: Vec<String> = response
+            .detections
+            .iter()
+            .map(|d| d.category.clone())
+            .collect();
+
+        AgentResponse {
+            version: PROTOCOL_VERSION,
+            decision: ProtocolDecision::Allow,
+            request_headers: vec![],
+            response_headers: vec![],
+            routing_metadata: HashMap::new(),
+            audit: sentinel_agent_protocol::AuditMetadata {
+                tags,
+                rule_ids,
+                confidence: Some(response.confidence as f32),
+                reason_codes: vec![],
+                custom: {
+                    let mut custom = HashMap::new();
+                    custom.insert(
+                        "guardrail_response".to_string(),
+                        serde_json::to_value(&response).unwrap_or_default(),
+                    );
+                    custom
+                },
+            },
+            needs_more: false,
+            request_body_mutation: None,
+            response_body_mutation: None,
+            websocket_decision: None,
+        }
+    }
 }
 
 /// Decode base64 string to bytes
@@ -381,6 +440,7 @@ mod tests {
                 route_id: None,
                 upstream_id: None,
                 timestamp: "2024-01-01T00:00:00Z".to_string(),
+                traceparent: None,
             },
             method: "GET".to_string(),
             uri: "/test".to_string(),

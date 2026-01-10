@@ -1103,8 +1103,8 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "sentinel-agent-protocol"
-version = "0.2.1"
-source = "git+https://github.com/raskell-io/sentinel.git?branch=main#71e5d5d4ac970ed68b5bc4f51e145529739197da"
+version = "0.2.3"
+source = "git+https://github.com/raskell-io/sentinel.git?branch=main#a83466b09ba1f4d81b31635d8d0604283c7fb5a9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1158,8 +1158,8 @@ dependencies = [
 
 [[package]]
 name = "sentinel-common"
-version = "0.2.1"
-source = "git+https://github.com/raskell-io/sentinel.git?branch=main#71e5d5d4ac970ed68b5bc4f51e145529739197da"
+version = "0.2.3"
+source = "git+https://github.com/raskell-io/sentinel.git?branch=main#a83466b09ba1f4d81b31635d8d0604283c7fb5a9"
 dependencies = [
  "anyhow",
  "chrono",

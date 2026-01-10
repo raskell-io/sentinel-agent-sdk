@@ -283,6 +283,7 @@ mod tests {
                 route_id: Some("default".to_string()),
                 upstream_id: Some("backend".to_string()),
                 timestamp: "2024-01-01T00:00:00Z".to_string(),
+                traceparent: None,
             },
             method: method.to_string(),
             uri: uri.to_string(),
