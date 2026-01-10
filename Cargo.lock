@@ -1136,6 +1136,7 @@ dependencies = [
  "async-trait",
  "base64",
  "clap",
+ "regex",
  "sentinel-agent-protocol",
  "sentinel-agent-sdk-macros",
  "serde",
