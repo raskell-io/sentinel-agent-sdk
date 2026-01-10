@@ -679,3 +679,247 @@ async fn main() -> anyhow::Result<()> {
         .await
 }
 ```
+
+## Login Protection with CAPTCHA
+
+Protect login endpoints with CAPTCHA challenges after failed attempts:
+
+```rust
+use sentinel_agent_sdk::prelude::*;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
+use tokio::sync::Mutex;
+
+struct LoginProtectionAgent {
+    captcha_site_key: String,
+    challenge_threshold: u32,
+    failed_attempts: Mutex<HashMap<String, AtomicU32>>,
+}
+
+impl LoginProtectionAgent {
+    fn new(site_key: &str) -> Self {
+        Self {
+            captcha_site_key: site_key.to_string(),
+            challenge_threshold: 3,
+            failed_attempts: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+#[async_trait]
+impl Agent for LoginProtectionAgent {
+    fn name(&self) -> &str {
+        "login-protection"
+    }
+
+    async fn on_request(&self, request: &Request) -> Decision {
+        // Only protect login endpoint
+        if !request.path_equals("/login") || request.method() != "POST" {
+            return Decision::allow();
+        }
+
+        let client_ip = request.client_ip().to_string();
+        let attempts = self.failed_attempts.lock().await;
+
+        let count = attempts
+            .get(&client_ip)
+            .map(|a| a.load(Ordering::Relaxed))
+            .unwrap_or(0);
+
+        // If too many failed attempts, require CAPTCHA
+        if count >= self.challenge_threshold {
+            let mut params = HashMap::new();
+            params.insert("site_key".to_string(), self.captcha_site_key.clone());
+            params.insert("action".to_string(), "login".to_string());
+
+            return Decision::challenge("captcha", params)
+                .with_tag("login-challenge")
+                .with_metadata("failed_attempts", json!(count));
+        }
+
+        Decision::allow()
+    }
+
+    async fn on_response(&self, request: &Request, response: &Response) -> Decision {
+        // Track failed login responses
+        if request.path_equals("/login") && request.method() == "POST" {
+            let client_ip = request.client_ip().to_string();
+            let mut attempts = self.failed_attempts.lock().await;
+
+            if response.status_code() == 401 {
+                attempts
+                    .entry(client_ip)
+                    .or_insert_with(|| AtomicU32::new(0))
+                    .fetch_add(1, Ordering::Relaxed);
+            } else if response.is_success() {
+                // Reset on successful login
+                if let Some(counter) = attempts.get(&client_ip) {
+                    counter.store(0, Ordering::Relaxed);
+                }
+            }
+        }
+
+        Decision::allow()
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    AgentRunner::new(LoginProtectionAgent::new("your-captcha-site-key"))
+        .with_socket("/tmp/login-protection.sock")
+        .run()
+        .await
+}
+```
+
+## Body Inspection Agent
+
+Inspect request bodies for malicious content:
+
+```rust
+use sentinel_agent_sdk::prelude::*;
+use regex::Regex;
+
+struct BodyInspectionAgent {
+    sql_patterns: Vec<Regex>,
+    xss_patterns: Vec<Regex>,
+}
+
+impl BodyInspectionAgent {
+    fn new() -> Self {
+        Self {
+            sql_patterns: vec![
+                Regex::new(r"(?i)union\s+select").unwrap(),
+                Regex::new(r"(?i)or\s+1\s*=\s*1").unwrap(),
+                Regex::new(r"(?i)drop\s+table").unwrap(),
+                Regex::new(r"(?i)--\s*$").unwrap(),
+            ],
+            xss_patterns: vec![
+                Regex::new(r"(?i)<script").unwrap(),
+                Regex::new(r"(?i)javascript:").unwrap(),
+                Regex::new(r"(?i)on\w+\s*=").unwrap(),
+            ],
+        }
+    }
+}
+
+#[async_trait]
+impl Agent for BodyInspectionAgent {
+    fn name(&self) -> &str {
+        "body-inspector"
+    }
+
+    async fn on_request_body(&self, request: &Request) -> Decision {
+        let body = match request.body_string() {
+            Some(b) => b,
+            None => return Decision::allow(),
+        };
+
+        // Check for SQL injection
+        for pattern in &self.sql_patterns {
+            if pattern.is_match(&body) {
+                return Decision::deny()
+                    .with_tag("sqli-detected")
+                    .with_rule_id("SQLI-001")
+                    .with_confidence(0.9)
+                    .with_metadata("pattern", json!(pattern.as_str()));
+            }
+        }
+
+        // Check for XSS
+        for pattern in &self.xss_patterns {
+            if pattern.is_match(&body) {
+                return Decision::deny()
+                    .with_tag("xss-detected")
+                    .with_rule_id("XSS-001")
+                    .with_confidence(0.85);
+            }
+        }
+
+        Decision::allow()
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    AgentRunner::new(BodyInspectionAgent::new())
+        .with_socket("/tmp/body-inspector.sock")
+        .run()
+        .await
+}
+```
+
+## Response Transformation
+
+Transform responses from upstream:
+
+```rust
+use sentinel_agent_sdk::prelude::*;
+use sentinel_agent_protocol::BodyMutation;
+use regex::Regex;
+
+struct ResponseTransformAgent {
+    password_pattern: Regex,
+}
+
+impl ResponseTransformAgent {
+    fn new() -> Self {
+        Self {
+            password_pattern: Regex::new(r#""password"\s*:\s*"[^"]*""#).unwrap(),
+        }
+    }
+}
+
+#[async_trait]
+impl Agent for ResponseTransformAgent {
+    fn name(&self) -> &str {
+        "response-transform"
+    }
+
+    async fn on_response(&self, request: &Request, response: &Response) -> Decision {
+        // Add CORS headers for API requests
+        if request.path_starts_with("/api/") {
+            return Decision::allow()
+                .add_response_header("Access-Control-Allow-Origin", "*")
+                .add_response_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+                .add_response_header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        }
+
+        // Add cache headers for static content
+        if let Some(content_type) = response.content_type() {
+            if content_type.starts_with("image/") || content_type.starts_with("text/css") {
+                return Decision::allow()
+                    .add_response_header("Cache-Control", "public, max-age=86400");
+            }
+        }
+
+        Decision::allow()
+    }
+
+    async fn on_response_body(&self, request: &Request, response: &Response) -> Decision {
+        // Redact sensitive data from JSON responses
+        if response.is_json() {
+            if let Some(body) = response.body_string() {
+                if self.password_pattern.is_match(&body) {
+                    let redacted = self.password_pattern
+                        .replace_all(&body, r#""password":"[REDACTED]""#)
+                        .to_string();
+
+                    return Decision::allow()
+                        .with_response_body_mutation(BodyMutation::replace(0, redacted));
+                }
+            }
+        }
+
+        Decision::allow()
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    AgentRunner::new(ResponseTransformAgent::new())
+        .with_socket("/tmp/response-transform.sock")
+        .run()
+        .await
+}
+```
