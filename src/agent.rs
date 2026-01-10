@@ -5,7 +5,9 @@
 
 use crate::{Decision, Request, Response};
 use async_trait::async_trait;
-use sentinel_agent_protocol::{AgentResponse, Decision as ProtocolDecision, PROTOCOL_VERSION};
+use sentinel_agent_protocol::{
+    AgentResponse, Decision as ProtocolDecision, PROTOCOL_VERSION,
+};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -84,6 +86,19 @@ pub trait Agent: Send + Sync + 'static {
     async fn on_response_body(&self, request: &Request, response: &Response) -> Decision {
         let _ = (request, response);
         Decision::allow()
+    }
+
+    /// Called when request processing is complete.
+    ///
+    /// Use this for logging, metrics collection, or cleanup.
+    /// This is called after the response has been sent to the client.
+    ///
+    /// # Arguments
+    /// * `request` - The original request
+    /// * `status` - The final HTTP status code sent to the client
+    /// * `duration_ms` - Total request processing time in milliseconds
+    async fn on_request_complete(&self, request: &Request, status: u16, duration_ms: u64) {
+        let _ = (request, status, duration_ms);
     }
 }
 
@@ -265,8 +280,18 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
         &self,
         event: sentinel_agent_protocol::RequestCompleteEvent,
     ) -> AgentResponse {
-        // Clean up cache when request completes
-        self.request_cache.write().await.remove(&event.correlation_id);
+        // Get cached request for the callback
+        let request = self.request_cache.write().await.remove(&event.correlation_id);
+
+        // Call the agent's on_request_complete hook if we have request context
+        if let Some(request) = request {
+            self.agent.on_request_complete(
+                &request,
+                event.status,
+                event.duration_ms,
+            ).await;
+        }
+
         AgentResponse::default_allow()
     }
 }
@@ -284,6 +309,7 @@ fn base64_decode(s: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 
     struct TestAgent;
 
@@ -306,5 +332,76 @@ mod tests {
     async fn test_agent_handler() {
         let handler = AgentHandler::new(TestAgent);
         assert_eq!(handler.agent().name(), "test-agent");
+    }
+
+    struct MetricsAgent {
+        completed_status: AtomicU16,
+        completed_duration: AtomicU64,
+    }
+
+    impl MetricsAgent {
+        fn new() -> Self {
+            Self {
+                completed_status: AtomicU16::new(0),
+                completed_duration: AtomicU64::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Agent for MetricsAgent {
+        fn name(&self) -> &str {
+            "metrics-agent"
+        }
+
+        async fn on_request_complete(&self, _request: &Request, status: u16, duration_ms: u64) {
+            self.completed_status.store(status, Ordering::SeqCst);
+            self.completed_duration.store(duration_ms, Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_on_request_complete() {
+        use sentinel_agent_protocol::AgentHandler as ProtocolHandler;
+
+        let agent = MetricsAgent::new();
+        let handler = AgentHandler::new(agent);
+
+        // First send a request to populate the cache
+        let request_event = sentinel_agent_protocol::RequestHeadersEvent {
+            metadata: sentinel_agent_protocol::RequestMetadata {
+                correlation_id: "test-123".to_string(),
+                request_id: "req-456".to_string(),
+                client_ip: "127.0.0.1".to_string(),
+                client_port: 12345,
+                server_name: None,
+                protocol: "HTTP/1.1".to_string(),
+                tls_version: None,
+                tls_cipher: None,
+                route_id: None,
+                upstream_id: None,
+                timestamp: "2024-01-01T00:00:00Z".to_string(),
+            },
+            method: "GET".to_string(),
+            uri: "/test".to_string(),
+            headers: HashMap::new(),
+        };
+        handler.on_request_headers(request_event).await;
+
+        // Now send the complete event
+        let complete_event = sentinel_agent_protocol::RequestCompleteEvent {
+            correlation_id: "test-123".to_string(),
+            status: 200,
+            duration_ms: 42,
+            request_body_size: 0,
+            response_body_size: 0,
+            upstream_attempts: 1,
+            error: None,
+        };
+        handler.on_request_complete(complete_event).await;
+
+        // Verify the callback was invoked
+        assert_eq!(handler.agent().completed_status.load(Ordering::SeqCst), 200);
+        assert_eq!(handler.agent().completed_duration.load(Ordering::SeqCst), 42);
     }
 }

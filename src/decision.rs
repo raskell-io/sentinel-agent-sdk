@@ -2,7 +2,7 @@
 //!
 //! Provides an ergonomic way to construct agent responses.
 
-use sentinel_agent_protocol::{AgentResponse, AuditMetadata, Decision as ProtocolDecision, HeaderOp, PROTOCOL_VERSION};
+use sentinel_agent_protocol::{AgentResponse, AuditMetadata, BodyMutation, Decision as ProtocolDecision, HeaderOp, PROTOCOL_VERSION};
 use std::collections::HashMap;
 
 /// A builder for constructing agent decisions.
@@ -37,6 +37,13 @@ pub struct Decision {
     remove_response_headers: Vec<String>,
     tags: Vec<String>,
     custom_metadata: HashMap<String, serde_json::Value>,
+    rule_ids: Vec<String>,
+    confidence: Option<f32>,
+    reason_codes: Vec<String>,
+    routing_metadata: HashMap<String, String>,
+    needs_more: bool,
+    request_body_mutation: Option<BodyMutation>,
+    response_body_mutation: Option<BodyMutation>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -45,6 +52,10 @@ enum DecisionType {
     Allow,
     Block,
     Redirect(String),
+    Challenge {
+        challenge_type: String,
+        params: HashMap<String, String>,
+    },
 }
 
 impl Decision {
@@ -106,6 +117,37 @@ impl Decision {
         Self {
             decision: DecisionType::Redirect(url.into()),
             status_code: Some(301),
+            ..Default::default()
+        }
+    }
+
+    /// Create a challenge decision (e.g., CAPTCHA, JavaScript challenge).
+    ///
+    /// The client will be presented with a challenge before proceeding.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use sentinel_agent_sdk::Decision;
+    /// use std::collections::HashMap;
+    ///
+    /// // Simple challenge
+    /// let decision = Decision::challenge("captcha", HashMap::new());
+    ///
+    /// // Challenge with parameters
+    /// let mut params = HashMap::new();
+    /// params.insert("site_key".to_string(), "abc123".to_string());
+    /// let decision = Decision::challenge("captcha", params);
+    /// ```
+    pub fn challenge(
+        challenge_type: impl Into<String>,
+        params: HashMap<String, String>,
+    ) -> Self {
+        Self {
+            decision: DecisionType::Challenge {
+                challenge_type: challenge_type.into(),
+                params,
+            },
             ..Default::default()
         }
     }
@@ -174,6 +216,78 @@ impl Decision {
         self
     }
 
+    /// Add a rule ID for audit/compliance tracking.
+    ///
+    /// Rule IDs identify which security rules triggered the decision.
+    pub fn with_rule_id(mut self, rule_id: impl Into<String>) -> Self {
+        self.rule_ids.push(rule_id.into());
+        self
+    }
+
+    /// Add multiple rule IDs.
+    pub fn with_rule_ids(mut self, rule_ids: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.rule_ids.extend(rule_ids.into_iter().map(|r| r.into()));
+        self
+    }
+
+    /// Set the confidence score for the decision (0.0 to 1.0).
+    ///
+    /// Useful for ML-based decisions or probabilistic matching.
+    pub fn with_confidence(mut self, confidence: f32) -> Self {
+        self.confidence = Some(confidence.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Add a reason code explaining the decision.
+    ///
+    /// Reason codes provide structured explanations for audit trails.
+    pub fn with_reason_code(mut self, code: impl Into<String>) -> Self {
+        self.reason_codes.push(code.into());
+        self
+    }
+
+    /// Add multiple reason codes.
+    pub fn with_reason_codes(mut self, codes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.reason_codes.extend(codes.into_iter().map(|c| c.into()));
+        self
+    }
+
+    /// Add routing metadata for upstream selection/load balancing.
+    ///
+    /// This metadata can influence how the proxy routes the request.
+    pub fn with_routing_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.routing_metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Indicate that more data is needed before making a final decision.
+    ///
+    /// Use this when body inspection is required but not yet available.
+    pub fn needs_more_data(mut self) -> Self {
+        self.needs_more = true;
+        self
+    }
+
+    /// Set a mutation to apply to the request body.
+    ///
+    /// Use `BodyMutation::replace(chunk_index, data)` to replace a chunk,
+    /// `BodyMutation::drop_chunk(chunk_index)` to drop it, or
+    /// `BodyMutation::pass_through(chunk_index)` to leave it unchanged.
+    pub fn with_request_body_mutation(mut self, mutation: BodyMutation) -> Self {
+        self.request_body_mutation = Some(mutation);
+        self
+    }
+
+    /// Set a mutation to apply to the response body.
+    ///
+    /// Use `BodyMutation::replace(chunk_index, data)` to replace a chunk,
+    /// `BodyMutation::drop_chunk(chunk_index)` to drop it, or
+    /// `BodyMutation::pass_through(chunk_index)` to leave it unchanged.
+    pub fn with_response_body_mutation(mut self, mutation: BodyMutation) -> Self {
+        self.response_body_mutation = Some(mutation);
+        self
+    }
+
     /// Build the protocol response.
     pub fn build(self) -> AgentResponse {
         let decision = match &self.decision {
@@ -187,6 +301,10 @@ impl Decision {
                 url: url.clone(),
                 status: self.status_code.unwrap_or(302),
             },
+            DecisionType::Challenge { challenge_type, params } => ProtocolDecision::Challenge {
+                challenge_type: challenge_type.clone(),
+                params: params.clone(),
+            },
         };
 
         let request_headers = self.build_request_mutations();
@@ -197,17 +315,17 @@ impl Decision {
             decision,
             request_headers,
             response_headers,
-            routing_metadata: HashMap::new(),
+            routing_metadata: self.routing_metadata,
             audit: AuditMetadata {
                 tags: self.tags,
-                rule_ids: vec![],
-                confidence: None,
-                reason_codes: vec![],
+                rule_ids: self.rule_ids,
+                confidence: self.confidence,
+                reason_codes: self.reason_codes,
                 custom: self.custom_metadata,
             },
-            needs_more: false,
-            request_body_mutation: None,
-            response_body_mutation: None,
+            needs_more: self.needs_more,
+            request_body_mutation: self.request_body_mutation,
+            response_body_mutation: self.response_body_mutation,
             websocket_decision: None,
         }
     }
@@ -256,6 +374,7 @@ impl From<Decision> for AgentResponse {
 /// Shorthand functions for common decisions.
 pub mod decisions {
     use super::*;
+    use std::collections::HashMap;
 
     /// Allow the request.
     pub fn allow() -> AgentResponse {
@@ -285,6 +404,11 @@ pub mod decisions {
     /// Redirect to URL.
     pub fn redirect(url: impl Into<String>) -> AgentResponse {
         Decision::redirect(url).build()
+    }
+
+    /// Challenge with type and parameters.
+    pub fn challenge(challenge_type: impl Into<String>, params: HashMap<String, String>) -> AgentResponse {
+        Decision::challenge(challenge_type, params).build()
     }
 }
 
@@ -374,6 +498,170 @@ mod tests {
                 assert!(body.as_ref().unwrap().contains("Bad request"));
             }
             _ => panic!("Expected block"),
+        }
+    }
+
+    #[test]
+    fn test_rule_ids() {
+        let response = Decision::deny()
+            .with_rule_id("SQLI-001")
+            .with_rule_ids(["XSS-001", "XSS-002"])
+            .build();
+
+        assert_eq!(response.audit.rule_ids.len(), 3);
+        assert!(response.audit.rule_ids.contains(&"SQLI-001".to_string()));
+        assert!(response.audit.rule_ids.contains(&"XSS-001".to_string()));
+    }
+
+    #[test]
+    fn test_confidence() {
+        let response = Decision::deny()
+            .with_confidence(0.95)
+            .build();
+
+        assert_eq!(response.audit.confidence, Some(0.95_f32));
+
+        // Test clamping
+        let response2 = Decision::deny().with_confidence(1.5).build();
+        assert_eq!(response2.audit.confidence, Some(1.0_f32));
+
+        let response3 = Decision::deny().with_confidence(-0.5).build();
+        assert_eq!(response3.audit.confidence, Some(0.0_f32));
+    }
+
+    #[test]
+    fn test_reason_codes() {
+        let response = Decision::deny()
+            .with_reason_code("POLICY_VIOLATION")
+            .with_reason_codes(["GEO_BLOCKED", "IP_BLACKLISTED"])
+            .build();
+
+        assert_eq!(response.audit.reason_codes.len(), 3);
+        assert!(response.audit.reason_codes.contains(&"POLICY_VIOLATION".to_string()));
+    }
+
+    #[test]
+    fn test_routing_metadata() {
+        let response = Decision::allow()
+            .with_routing_metadata("upstream", "backend-v2")
+            .with_routing_metadata("weight", "100")
+            .build();
+
+        assert_eq!(response.routing_metadata.len(), 2);
+        assert_eq!(response.routing_metadata.get("upstream"), Some(&"backend-v2".to_string()));
+    }
+
+    #[test]
+    fn test_needs_more_data() {
+        let response = Decision::allow()
+            .needs_more_data()
+            .build();
+
+        assert!(response.needs_more);
+
+        // Default should be false
+        let response2 = Decision::allow().build();
+        assert!(!response2.needs_more);
+    }
+
+    #[test]
+    fn test_body_mutations() {
+        let response = Decision::allow()
+            .with_request_body_mutation(BodyMutation::replace(0, "modified request body".to_string()))
+            .with_response_body_mutation(BodyMutation::replace(0, "modified response body".to_string()))
+            .build();
+
+        assert!(response.request_body_mutation.is_some());
+        assert!(response.response_body_mutation.is_some());
+
+        let req_mutation = response.request_body_mutation.unwrap();
+        assert_eq!(req_mutation.data, Some("modified request body".to_string()));
+        assert_eq!(req_mutation.chunk_index, 0);
+
+        let resp_mutation = response.response_body_mutation.unwrap();
+        assert_eq!(resp_mutation.data, Some("modified response body".to_string()));
+    }
+
+    #[test]
+    fn test_combined_audit_fields() {
+        let response = Decision::deny()
+            .with_rule_id("WAF-001")
+            .with_confidence(0.87)
+            .with_reason_code("MALICIOUS_PAYLOAD")
+            .with_tag("blocked")
+            .with_metadata("pattern", serde_json::json!("SELECT.*FROM"))
+            .build();
+
+        assert_eq!(response.audit.rule_ids, vec!["WAF-001"]);
+        assert_eq!(response.audit.confidence, Some(0.87_f32));
+        assert_eq!(response.audit.reason_codes, vec!["MALICIOUS_PAYLOAD"]);
+        assert_eq!(response.audit.tags, vec!["blocked"]);
+        assert!(response.audit.custom.contains_key("pattern"));
+    }
+
+    #[test]
+    fn test_body_mutation_drop() {
+        let response = Decision::allow()
+            .with_request_body_mutation(BodyMutation::drop_chunk(1))
+            .build();
+
+        let mutation = response.request_body_mutation.unwrap();
+        assert!(mutation.is_drop());
+        assert_eq!(mutation.chunk_index, 1);
+    }
+
+    #[test]
+    fn test_body_mutation_pass_through() {
+        let response = Decision::allow()
+            .with_response_body_mutation(BodyMutation::pass_through(2))
+            .build();
+
+        let mutation = response.response_body_mutation.unwrap();
+        assert!(mutation.is_pass_through());
+        assert_eq!(mutation.chunk_index, 2);
+    }
+
+    #[test]
+    fn test_challenge() {
+        let mut params = HashMap::new();
+        params.insert("site_key".to_string(), "abc123".to_string());
+
+        let response = Decision::challenge("captcha", params).build();
+
+        match &response.decision {
+            ProtocolDecision::Challenge { challenge_type, params } => {
+                assert_eq!(challenge_type, "captcha");
+                assert_eq!(params.get("site_key"), Some(&"abc123".to_string()));
+            }
+            _ => panic!("Expected challenge decision"),
+        }
+    }
+
+    #[test]
+    fn test_challenge_empty_params() {
+        let response = Decision::challenge("js_challenge", HashMap::new()).build();
+
+        match &response.decision {
+            ProtocolDecision::Challenge { challenge_type, params } => {
+                assert_eq!(challenge_type, "js_challenge");
+                assert!(params.is_empty());
+            }
+            _ => panic!("Expected challenge decision"),
+        }
+    }
+
+    #[test]
+    fn test_challenge_convenience_function() {
+        let mut params = HashMap::new();
+        params.insert("difficulty".to_string(), "hard".to_string());
+
+        let response = decisions::challenge("proof_of_work", params);
+
+        match &response.decision {
+            ProtocolDecision::Challenge { challenge_type, .. } => {
+                assert_eq!(challenge_type, "proof_of_work");
+            }
+            _ => panic!("Expected challenge decision"),
         }
     }
 }
