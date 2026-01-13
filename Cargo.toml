@@ -13,7 +13,7 @@ readme = "README.md"
 
 [dependencies]
 # Core protocol (re-exported)
-sentinel-agent-protocol = { git = "https://github.com/raskell-io/sentinel.git", branch = "main" }
+sentinel-agent-protocol = "0.3"
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
@@ -36,7 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive"], optional = true }
 
 # Derive macros
-sentinel-agent-sdk-macros = { path = "sentinel-agent-sdk-macros", optional = true }
+sentinel-agent-sdk-macros = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
