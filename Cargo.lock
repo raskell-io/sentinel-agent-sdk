@@ -1582,7 +1582,7 @@ dependencies = [
  "clap",
  "regex",
  "sentinel-agent-protocol",
- "sentinel-agent-sdk-macros",
+ "sentinel-agent-sdk-macros 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -1595,6 +1595,17 @@ dependencies = [
 [[package]]
 name = "sentinel-agent-sdk-macros"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "sentinel-agent-sdk-macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c22144bf7934dc7329f433aceb4fabb308e5120a4e16c499a64018f16ea92293"
 dependencies = [
  "proc-macro2",
  "quote",
