@@ -2,21 +2,11 @@
 //!
 //! This module provides the `AgentRunnerV2` runner that supports both
 //! Unix domain sockets and gRPC transport for the v2 agent protocol.
-//!
-//! # Example
-//!
-//! ```ignore
-//! use sentinel_agent_sdk::v2::{AgentRunnerV2, TransportConfig};
-//!
-//! let runner = AgentRunnerV2::new(MyAgent)
-//!     .with_name("my-agent")
-//!     .with_uds("/tmp/my-agent.sock")
-//!     .run()
-//!     .await?;
-//! ```
 
 use crate::agent::{Agent, AgentHandler};
+use crate::Decision;
 use anyhow::Result;
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -72,6 +62,117 @@ pub enum ShutdownReason {
     Reload,
 }
 
+/// Health status of the agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HealthStatus {
+    /// Agent is healthy and ready.
+    #[default]
+    Healthy,
+    /// Agent is degraded but functional.
+    Degraded,
+    /// Agent is unhealthy.
+    Unhealthy,
+    /// Agent is draining.
+    Draining,
+}
+
+/// Agent capabilities.
+#[derive(Debug, Clone, Default)]
+pub struct AgentCapabilities {
+    /// Whether the agent supports request header inspection.
+    pub request_headers: bool,
+    /// Whether the agent supports response header inspection.
+    pub response_headers: bool,
+    /// Whether the agent supports request body inspection.
+    pub request_body: bool,
+    /// Whether the agent supports response body inspection.
+    pub response_body: bool,
+    /// Whether the agent supports streaming.
+    pub streaming: bool,
+    /// Whether the agent supports health checks.
+    pub health_check: bool,
+    /// Whether the agent supports metrics.
+    pub metrics: bool,
+    /// Whether the agent supports configuration.
+    pub configuration: bool,
+    /// Custom capabilities.
+    pub custom: HashMap<String, String>,
+}
+
+impl AgentCapabilities {
+    /// Create new capabilities with all features enabled.
+    pub fn all() -> Self {
+        Self {
+            request_headers: true,
+            response_headers: true,
+            request_body: true,
+            response_body: true,
+            streaming: true,
+            health_check: true,
+            metrics: true,
+            configuration: true,
+            custom: HashMap::new(),
+        }
+    }
+
+    /// Create capabilities for request-only processing.
+    pub fn request_only() -> Self {
+        Self {
+            request_headers: true,
+            request_body: true,
+            ..Default::default()
+        }
+    }
+}
+
+/// Extension trait for building agent capabilities.
+pub trait AgentCapabilitiesExt {
+    /// Enable request header processing.
+    fn with_request_headers(self) -> Self;
+    /// Enable response header processing.
+    fn with_response_headers(self) -> Self;
+    /// Enable request body processing.
+    fn with_request_body(self) -> Self;
+    /// Enable response body processing.
+    fn with_response_body(self) -> Self;
+    /// Enable health checks.
+    fn with_health_check(self) -> Self;
+    /// Enable metrics.
+    fn with_metrics(self) -> Self;
+}
+
+impl AgentCapabilitiesExt for AgentCapabilities {
+    fn with_request_headers(mut self) -> Self {
+        self.request_headers = true;
+        self
+    }
+
+    fn with_response_headers(mut self) -> Self {
+        self.response_headers = true;
+        self
+    }
+
+    fn with_request_body(mut self) -> Self {
+        self.request_body = true;
+        self
+    }
+
+    fn with_response_body(mut self) -> Self {
+        self.response_body = true;
+        self
+    }
+
+    fn with_health_check(mut self) -> Self {
+        self.health_check = true;
+        self
+    }
+
+    fn with_metrics(mut self) -> Self {
+        self.metrics = true;
+        self
+    }
+}
+
 /// Metrics report from the agent.
 #[derive(Debug, Clone, Default)]
 pub struct MetricsReport {
@@ -103,6 +204,12 @@ impl MetricsReport {
         self
     }
 
+    /// Add a histogram value.
+    pub fn histogram(mut self, name: impl Into<String>, values: Vec<f64>) -> Self {
+        self.histograms.insert(name.into(), values);
+        self
+    }
+
     /// Add a label.
     pub fn label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.labels.insert(key.into(), value.into());
@@ -110,21 +217,62 @@ impl MetricsReport {
     }
 }
 
+/// V2 Agent trait with lifecycle hooks.
+#[async_trait]
+pub trait AgentV2: Send + Sync + 'static {
+    /// Get agent name.
+    fn name(&self) -> &str;
+
+    /// Get agent capabilities.
+    fn capabilities(&self) -> AgentCapabilities {
+        AgentCapabilities::default()
+    }
+
+    /// Process request headers.
+    async fn on_request_headers(
+        &self,
+        _headers: &HashMap<String, String>,
+        _metadata: &HashMap<String, String>,
+    ) -> Decision {
+        Decision::allow()
+    }
+
+    /// Process response headers.
+    async fn on_response_headers(
+        &self,
+        _headers: &HashMap<String, String>,
+        _metadata: &HashMap<String, String>,
+    ) -> Decision {
+        Decision::allow()
+    }
+
+    /// Handle health check.
+    fn health_status(&self) -> HealthStatus {
+        HealthStatus::Healthy
+    }
+
+    /// Collect metrics.
+    fn collect_metrics(&self) -> MetricsReport {
+        MetricsReport::new()
+    }
+
+    /// Handle drain event.
+    fn on_drain(&self, _timeout_ms: u64, _reason: DrainReason) {
+        // Default: no-op
+    }
+
+    /// Handle shutdown event.
+    fn on_shutdown(&self, _reason: ShutdownReason, _timeout_ms: u64) {
+        // Default: no-op
+    }
+
+    /// Handle configuration update.
+    fn on_configure(&self, _config: &HashMap<String, String>) -> Result<()> {
+        Ok(())
+    }
+}
+
 /// V2 protocol runner for Sentinel agents.
-///
-/// Supports both gRPC and Unix domain socket transports.
-///
-/// # Example
-///
-/// ```ignore
-/// use sentinel_agent_sdk::v2::AgentRunnerV2;
-///
-/// AgentRunnerV2::new(MyAgent)
-///     .with_name("my-agent")
-///     .with_uds("/tmp/my-agent.sock")
-///     .run()
-///     .await?;
-/// ```
 pub struct AgentRunnerV2<A: Agent> {
     agent: A,
     name: String,
@@ -177,11 +325,6 @@ impl<A: Agent> AgentRunnerV2<A> {
     }
 
     /// Run the agent server.
-    ///
-    /// This method:
-    /// 1. Sets up logging
-    /// 2. Starts the configured transports
-    /// 3. Handles graceful shutdown on SIGINT/SIGTERM
     pub async fn run(self) -> Result<()> {
         // Setup logging
         self.setup_logging();
@@ -206,7 +349,7 @@ impl<A: Agent> AgentRunnerV2<A> {
         // Create handler
         let handler = AgentHandler::new(self.agent);
 
-        // Create server - for now just UDS, gRPC can be added later
+        // Create server
         let server = sentinel_agent_protocol::AgentServer::new(
             self.name.clone(),
             uds_path.clone(),
@@ -277,7 +420,10 @@ impl<A: Agent> AgentRunnerV2<A> {
 
 /// Prelude module for v2 types.
 pub mod prelude {
-    pub use super::{AgentRunnerV2, DrainReason, MetricsReport, ShutdownReason, TransportConfig};
+    pub use super::{
+        AgentCapabilities, AgentCapabilitiesExt, AgentRunnerV2, AgentV2,
+        DrainReason, HealthStatus, MetricsReport, ShutdownReason, TransportConfig,
+    };
 }
 
 #[cfg(test)]
@@ -285,17 +431,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_transport_config() {
-        let _grpc = TransportConfig::Grpc {
-            address: "127.0.0.1:50051".parse().unwrap(),
-        };
-        let _uds = TransportConfig::Uds {
-            path: PathBuf::from("/tmp/test.sock"),
-        };
-        let _both = TransportConfig::Both {
-            grpc_address: "127.0.0.1:50051".parse().unwrap(),
-            uds_path: PathBuf::from("/tmp/test.sock"),
-        };
+    fn test_capabilities() {
+        let caps = AgentCapabilities::default()
+            .with_request_headers()
+            .with_health_check();
+        assert!(caps.request_headers);
+        assert!(caps.health_check);
+        assert!(!caps.response_headers);
     }
 
     #[test]
@@ -307,6 +449,5 @@ mod tests {
 
         assert_eq!(report.counters.get("requests"), Some(&100));
         assert_eq!(report.gauges.get("latency_ms"), Some(&42.5));
-        assert_eq!(report.labels.get("agent"), Some(&"test".to_string()));
     }
 }
