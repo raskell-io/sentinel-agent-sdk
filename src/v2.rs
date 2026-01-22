@@ -6,7 +6,10 @@
 //! Types are re-exported from `sentinel_agent_protocol::v2` for compatibility.
 
 use crate::agent::{Agent, AgentHandler};
+use crate::Decision;
 use anyhow::Result;
+use async_trait::async_trait;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -133,6 +136,64 @@ impl AgentCapabilitiesExt for AgentCapabilities {
     fn with_metrics(mut self) -> Self {
         self.metrics = true;
         self
+    }
+}
+
+/// V2 Agent trait with lifecycle hooks.
+///
+/// Agents implementing this trait can use the v2 protocol features
+/// including health reporting, metrics collection, and graceful shutdown.
+#[async_trait]
+pub trait AgentV2: Send + Sync + 'static {
+    /// Get agent name.
+    fn name(&self) -> &str;
+
+    /// Get agent capabilities.
+    fn capabilities(&self) -> AgentCapabilities {
+        AgentCapabilities::default()
+    }
+
+    /// Process request headers.
+    async fn on_request_headers(
+        &self,
+        _headers: &HashMap<String, String>,
+        _metadata: &HashMap<String, String>,
+    ) -> Decision {
+        Decision::allow()
+    }
+
+    /// Process response headers.
+    async fn on_response_headers(
+        &self,
+        _headers: &HashMap<String, String>,
+        _metadata: &HashMap<String, String>,
+    ) -> Decision {
+        Decision::allow()
+    }
+
+    /// Handle health check.
+    fn health_status(&self) -> HealthStatus {
+        HealthStatus::healthy("agent")
+    }
+
+    /// Collect metrics.
+    fn collect_metrics(&self) -> MetricsReport {
+        MetricsReport::new("agent", 10_000)
+    }
+
+    /// Handle drain event.
+    fn on_drain(&self, _timeout_ms: u64, _reason: DrainReason) {
+        // Default: no-op
+    }
+
+    /// Handle shutdown event.
+    fn on_shutdown(&self, _reason: ShutdownReason, _timeout_ms: u64) {
+        // Default: no-op
+    }
+
+    /// Handle configuration update.
+    fn on_configure(&self, _config: &HashMap<String, String>) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -285,7 +346,7 @@ impl<A: Agent> AgentRunnerV2<A> {
 /// Prelude module for v2 types.
 pub mod prelude {
     pub use super::{
-        AgentCapabilities, AgentCapabilitiesExt, AgentRunnerV2, TransportConfig,
+        AgentCapabilities, AgentCapabilitiesExt, AgentRunnerV2, AgentV2, TransportConfig,
     };
     // Re-export protocol types
     pub use sentinel_agent_protocol::v2::{
