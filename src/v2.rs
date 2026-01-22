@@ -17,6 +17,7 @@
 
 use crate::agent::{Agent, AgentHandler};
 use anyhow::Result;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -41,6 +42,72 @@ pub enum TransportConfig {
         /// Path to the Unix socket.
         uds_path: PathBuf,
     },
+}
+
+/// Reason for draining the agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DrainReason {
+    /// Proxy initiated graceful shutdown.
+    GracefulShutdown,
+    /// Agent is being replaced/upgraded.
+    Replacement,
+    /// Scheduled maintenance.
+    Maintenance,
+    /// Health check failure.
+    HealthFailure,
+    /// Manual drain request.
+    Manual,
+}
+
+/// Reason for shutting down the agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShutdownReason {
+    /// Graceful shutdown requested.
+    Graceful,
+    /// Immediate shutdown (e.g., SIGTERM).
+    Immediate,
+    /// Error condition requiring restart.
+    Error,
+    /// Configuration reload.
+    Reload,
+}
+
+/// Metrics report from the agent.
+#[derive(Debug, Clone, Default)]
+pub struct MetricsReport {
+    /// Counter metrics (name -> value).
+    pub counters: HashMap<String, u64>,
+    /// Gauge metrics (name -> value).
+    pub gauges: HashMap<String, f64>,
+    /// Histogram metrics (name -> values).
+    pub histograms: HashMap<String, Vec<f64>>,
+    /// Custom labels for the metrics.
+    pub labels: HashMap<String, String>,
+}
+
+impl MetricsReport {
+    /// Create a new empty metrics report.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a counter metric.
+    pub fn counter(mut self, name: impl Into<String>, value: u64) -> Self {
+        self.counters.insert(name.into(), value);
+        self
+    }
+
+    /// Add a gauge metric.
+    pub fn gauge(mut self, name: impl Into<String>, value: f64) -> Self {
+        self.gauges.insert(name.into(), value);
+        self
+    }
+
+    /// Add a label.
+    pub fn label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.labels.insert(key.into(), value.into());
+        self
+    }
 }
 
 /// V2 protocol runner for Sentinel agents.
@@ -208,6 +275,11 @@ impl<A: Agent> AgentRunnerV2<A> {
     }
 }
 
+/// Prelude module for v2 types.
+pub mod prelude {
+    pub use super::{AgentRunnerV2, DrainReason, MetricsReport, ShutdownReason, TransportConfig};
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,5 +296,17 @@ mod tests {
             grpc_address: "127.0.0.1:50051".parse().unwrap(),
             uds_path: PathBuf::from("/tmp/test.sock"),
         };
+    }
+
+    #[test]
+    fn test_metrics_report() {
+        let report = MetricsReport::new()
+            .counter("requests", 100)
+            .gauge("latency_ms", 42.5)
+            .label("agent", "test");
+
+        assert_eq!(report.counters.get("requests"), Some(&100));
+        assert_eq!(report.gauges.get("latency_ms"), Some(&42.5));
+        assert_eq!(report.labels.get("agent"), Some(&"test".to_string()));
     }
 }
