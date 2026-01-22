@@ -1,6 +1,6 @@
 [package]
 name = "sentinel-agent-sdk"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Raskell <hello@raskell.io>"]
 description = "High-level SDK for building Sentinel proxy agents"
@@ -43,10 +43,11 @@ tokio-test = "0.4"
 regex = "1"
 
 [features]
-default = ["cli", "macros"]
+default = ["cli", "macros", "v2"]
 cli = ["clap"]
 macros = ["sentinel-agent-sdk-macros"]
 testing = []
+v2 = []
 
 [workspace]
 members = ["sentinel-agent-sdk-macros"]
