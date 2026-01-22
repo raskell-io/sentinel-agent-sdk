@@ -32,6 +32,20 @@
 //! }
 //! ```
 //!
+//! # V2 Protocol Support
+//!
+//! The SDK supports the v2 agent protocol with gRPC and UDS transports:
+//!
+//! ```ignore
+//! use sentinel_agent_sdk::v2::{AgentRunnerV2, TransportConfig};
+//!
+//! AgentRunnerV2::new(MyAgent)
+//!     .with_name("my-agent")
+//!     .with_uds("/tmp/my-agent.sock")
+//!     .run()
+//!     .await?;
+//! ```
+//!
 //! # Features
 //!
 //! - **Simplified types**: `Request`, `Response`, and `Decision` provide ergonomic APIs
@@ -39,17 +53,22 @@
 //! - **Configuration handling**: Receive config from proxy's KDL file
 //! - **CLI support**: Built-in argument parsing with clap (optional)
 //! - **Logging**: Automatic tracing setup
+//! - **V2 protocol**: Support for gRPC and UDS transports
 //!
 //! # Crate Features
 //!
 //! - `cli` (default): Enable CLI argument parsing with clap
 //! - `macros` (default): Enable derive macros
+//! - `v2` (default): Enable v2 protocol support with AgentRunnerV2
 
 mod agent;
 mod decision;
 mod request;
 mod response;
 mod runner;
+
+#[cfg(feature = "v2")]
+pub mod v2;
 
 pub use agent::{Agent, AgentHandler, ConfigurableAgent, ConfigurableAgentExt};
 pub use decision::{decisions, Decision};
