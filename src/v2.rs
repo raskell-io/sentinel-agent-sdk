@@ -6,19 +6,27 @@
 //! Types are re-exported from `sentinel_agent_protocol::v2` for compatibility.
 
 use crate::agent::{Agent, AgentHandler};
-use crate::Decision;
 use anyhow::Result;
-use async_trait::async_trait;
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, EnvFilter};
 
-// Re-export v2 types from the protocol crate
+// Re-export v2 types from the protocol crate for type compatibility
 pub use sentinel_agent_protocol::v2::{
-    CounterMetric, DrainReason, GaugeMetric, HealthStatus, HistogramMetric,
-    MetricsReport, ShutdownReason,
+    AgentCapabilities,
+    AgentFeatures,
+    AgentHandlerV2,
+    CounterMetric,
+    DrainReason,
+    GaugeMetric,
+    HealthStatus,
+    HistogramMetric,
+    MetricsReport,
+    ShutdownReason,
 };
+
+// Alias AgentHandlerV2 as AgentV2 for SDK compatibility
+pub use sentinel_agent_protocol::v2::AgentHandlerV2 as AgentV2;
 
 /// Transport configuration for the v2 runner.
 #[derive(Debug, Clone)]
@@ -42,55 +50,6 @@ pub enum TransportConfig {
     },
 }
 
-/// Agent capabilities for the SDK.
-///
-/// Note: This is a simpler version than the protocol crate's AgentCapabilities.
-/// For full capabilities, use `sentinel_agent_protocol::v2::AgentCapabilities`.
-#[derive(Debug, Clone, Default)]
-pub struct AgentCapabilities {
-    /// Whether the agent supports request header inspection.
-    pub request_headers: bool,
-    /// Whether the agent supports response header inspection.
-    pub response_headers: bool,
-    /// Whether the agent supports request body inspection.
-    pub request_body: bool,
-    /// Whether the agent supports response body inspection.
-    pub response_body: bool,
-    /// Whether the agent supports streaming.
-    pub streaming: bool,
-    /// Whether the agent supports health checks.
-    pub health_check: bool,
-    /// Whether the agent supports metrics.
-    pub metrics: bool,
-    /// Whether the agent supports configuration.
-    pub configuration: bool,
-}
-
-impl AgentCapabilities {
-    /// Create new capabilities with all features enabled.
-    pub fn all() -> Self {
-        Self {
-            request_headers: true,
-            response_headers: true,
-            request_body: true,
-            response_body: true,
-            streaming: true,
-            health_check: true,
-            metrics: true,
-            configuration: true,
-        }
-    }
-
-    /// Create capabilities for request-only processing.
-    pub fn request_only() -> Self {
-        Self {
-            request_headers: true,
-            request_body: true,
-            ..Default::default()
-        }
-    }
-}
-
 /// Extension trait for building agent capabilities.
 pub trait AgentCapabilitiesExt {
     /// Enable request header processing.
@@ -105,96 +64,6 @@ pub trait AgentCapabilitiesExt {
     fn with_health_check(self) -> Self;
     /// Enable metrics.
     fn with_metrics(self) -> Self;
-}
-
-impl AgentCapabilitiesExt for AgentCapabilities {
-    fn with_request_headers(mut self) -> Self {
-        self.request_headers = true;
-        self
-    }
-
-    fn with_response_headers(mut self) -> Self {
-        self.response_headers = true;
-        self
-    }
-
-    fn with_request_body(mut self) -> Self {
-        self.request_body = true;
-        self
-    }
-
-    fn with_response_body(mut self) -> Self {
-        self.response_body = true;
-        self
-    }
-
-    fn with_health_check(mut self) -> Self {
-        self.health_check = true;
-        self
-    }
-
-    fn with_metrics(mut self) -> Self {
-        self.metrics = true;
-        self
-    }
-}
-
-/// V2 Agent trait with lifecycle hooks.
-///
-/// Agents implementing this trait can use the v2 protocol features
-/// including health reporting, metrics collection, and graceful shutdown.
-#[async_trait]
-pub trait AgentV2: Send + Sync + 'static {
-    /// Get agent name.
-    fn name(&self) -> &str;
-
-    /// Get agent capabilities.
-    fn capabilities(&self) -> AgentCapabilities {
-        AgentCapabilities::default()
-    }
-
-    /// Process request headers.
-    async fn on_request_headers(
-        &self,
-        _headers: &HashMap<String, String>,
-        _metadata: &HashMap<String, String>,
-    ) -> Decision {
-        Decision::allow()
-    }
-
-    /// Process response headers.
-    async fn on_response_headers(
-        &self,
-        _headers: &HashMap<String, String>,
-        _metadata: &HashMap<String, String>,
-    ) -> Decision {
-        Decision::allow()
-    }
-
-    /// Handle health check.
-    fn health_status(&self) -> HealthStatus {
-        HealthStatus::healthy("agent")
-    }
-
-    /// Collect metrics.
-    fn collect_metrics(&self) -> MetricsReport {
-        MetricsReport::new("agent", 10_000)
-    }
-
-    /// Handle drain event.
-    fn on_drain(&self, _timeout_ms: u64, _reason: DrainReason) {
-        // Default: no-op
-    }
-
-    /// Handle shutdown event.
-    fn on_shutdown(&self, _reason: ShutdownReason, _timeout_ms: u64) {
-        // Default: no-op
-    }
-
-    /// Handle configuration update.
-    fn on_configure(&self, _config: &HashMap<String, String>) -> Result<()> {
-        Ok(())
-    }
 }
 
 /// V2 protocol runner for Sentinel agents.
@@ -346,10 +215,11 @@ impl<A: Agent> AgentRunnerV2<A> {
 /// Prelude module for v2 types.
 pub mod prelude {
     pub use super::{
-        AgentCapabilities, AgentCapabilitiesExt, AgentRunnerV2, AgentV2, TransportConfig,
+        AgentCapabilitiesExt, AgentRunnerV2, TransportConfig,
     };
-    // Re-export protocol types
+    // Re-export all protocol types
     pub use sentinel_agent_protocol::v2::{
+        AgentCapabilities, AgentFeatures, AgentHandlerV2, AgentHandlerV2 as AgentV2,
         CounterMetric, DrainReason, GaugeMetric, HealthStatus, HistogramMetric,
         MetricsReport, ShutdownReason,
     };
@@ -360,12 +230,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_capabilities() {
-        let caps = AgentCapabilities::default()
-            .with_request_headers()
-            .with_health_check();
-        assert!(caps.request_headers);
-        assert!(caps.health_check);
-        assert!(!caps.response_headers);
+    fn test_transport_config() {
+        let _grpc = TransportConfig::Grpc {
+            address: "127.0.0.1:50051".parse().unwrap(),
+        };
+        let _uds = TransportConfig::Uds {
+            path: PathBuf::from("/tmp/test.sock"),
+        };
     }
 }
