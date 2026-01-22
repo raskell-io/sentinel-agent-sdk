@@ -2,15 +2,20 @@
 //!
 //! This module provides the `AgentRunnerV2` runner that supports both
 //! Unix domain sockets and gRPC transport for the v2 agent protocol.
+//!
+//! Types are re-exported from `sentinel_agent_protocol::v2` for compatibility.
 
 use crate::agent::{Agent, AgentHandler};
-use crate::Decision;
 use anyhow::Result;
-use async_trait::async_trait;
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing_subscriber::{fmt, EnvFilter};
+
+// Re-export v2 types from the protocol crate
+pub use sentinel_agent_protocol::v2::{
+    CounterMetric, DrainReason, GaugeMetric, HealthStatus, HistogramMetric,
+    MetricsReport, ShutdownReason,
+};
 
 /// Transport configuration for the v2 runner.
 #[derive(Debug, Clone)]
@@ -34,244 +39,10 @@ pub enum TransportConfig {
     },
 }
 
-/// Reason for draining the agent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DrainReason {
-    /// Proxy initiated graceful shutdown.
-    GracefulShutdown,
-    /// Agent is being replaced/upgraded.
-    Replacement,
-    /// Scheduled maintenance.
-    Maintenance,
-    /// Health check failure.
-    HealthFailure,
-    /// Manual drain request.
-    Manual,
-}
-
-/// Reason for shutting down the agent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShutdownReason {
-    /// Graceful shutdown requested.
-    Graceful,
-    /// Immediate shutdown (e.g., SIGTERM).
-    Immediate,
-    /// Error condition requiring restart.
-    Error,
-    /// Configuration reload.
-    Reload,
-}
-
-/// Health status of the agent.
-#[derive(Debug, Clone, PartialEq)]
-pub struct HealthStatus {
-    /// Whether the agent is healthy.
-    pub healthy: bool,
-    /// Whether the agent is degraded.
-    pub degraded: bool,
-    /// Agent identifier.
-    pub agent_id: String,
-    /// Degraded subsystems (if any).
-    pub degraded_subsystems: Vec<String>,
-    /// Timeout multiplier for degraded state.
-    pub timeout_multiplier: f64,
-}
-
-impl Default for HealthStatus {
-    fn default() -> Self {
-        Self {
-            healthy: true,
-            degraded: false,
-            agent_id: String::new(),
-            degraded_subsystems: Vec::new(),
-            timeout_multiplier: 1.0,
-        }
-    }
-}
-
-impl HealthStatus {
-    /// Create a healthy status.
-    pub fn healthy(agent_id: impl Into<String>) -> Self {
-        Self {
-            healthy: true,
-            degraded: false,
-            agent_id: agent_id.into(),
-            degraded_subsystems: Vec::new(),
-            timeout_multiplier: 1.0,
-        }
-    }
-
-    /// Create a degraded status.
-    pub fn degraded(
-        agent_id: impl Into<String>,
-        subsystems: Vec<String>,
-        timeout_multiplier: f64,
-    ) -> Self {
-        Self {
-            healthy: true,
-            degraded: true,
-            agent_id: agent_id.into(),
-            degraded_subsystems: subsystems,
-            timeout_multiplier,
-        }
-    }
-
-    /// Create an unhealthy status.
-    pub fn unhealthy(agent_id: impl Into<String>) -> Self {
-        Self {
-            healthy: false,
-            degraded: false,
-            agent_id: agent_id.into(),
-            degraded_subsystems: Vec::new(),
-            timeout_multiplier: 1.0,
-        }
-    }
-
-    /// Check if status is healthy.
-    pub fn is_healthy(&self) -> bool {
-        self.healthy && !self.degraded
-    }
-
-    /// Check if status is degraded.
-    pub fn is_degraded(&self) -> bool {
-        self.degraded
-    }
-}
-
-/// Counter metric.
-#[derive(Debug, Clone)]
-pub struct CounterMetric {
-    /// Metric name.
-    pub name: String,
-    /// Metric value.
-    pub value: u64,
-    /// Optional labels.
-    pub labels: HashMap<String, String>,
-}
-
-impl CounterMetric {
-    /// Create a new counter metric.
-    pub fn new(name: impl Into<String>, value: u64) -> Self {
-        Self {
-            name: name.into(),
-            value,
-            labels: HashMap::new(),
-        }
-    }
-
-    /// Add a label to the metric.
-    pub fn with_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.labels.insert(key.into(), value.into());
-        self
-    }
-}
-
-/// Gauge metric.
-#[derive(Debug, Clone)]
-pub struct GaugeMetric {
-    /// Metric name.
-    pub name: String,
-    /// Metric value.
-    pub value: f64,
-    /// Optional labels.
-    pub labels: HashMap<String, String>,
-}
-
-impl GaugeMetric {
-    /// Create a new gauge metric.
-    pub fn new(name: impl Into<String>, value: f64) -> Self {
-        Self {
-            name: name.into(),
-            value,
-            labels: HashMap::new(),
-        }
-    }
-
-    /// Add a label to the metric.
-    pub fn with_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.labels.insert(key.into(), value.into());
-        self
-    }
-}
-
-/// Histogram metric.
-#[derive(Debug, Clone)]
-pub struct HistogramMetric {
-    /// Metric name.
-    pub name: String,
-    /// Metric values.
-    pub values: Vec<f64>,
-    /// Optional labels.
-    pub labels: HashMap<String, String>,
-}
-
-impl HistogramMetric {
-    /// Create a new histogram metric.
-    pub fn new(name: impl Into<String>, values: Vec<f64>) -> Self {
-        Self {
-            name: name.into(),
-            values,
-            labels: HashMap::new(),
-        }
-    }
-}
-
-/// Metrics report from the agent.
-#[derive(Debug, Clone, Default)]
-pub struct MetricsReport {
-    /// Agent identifier.
-    pub agent_id: String,
-    /// Reporting interval in milliseconds.
-    pub interval_ms: u64,
-    /// Counter metrics.
-    pub counters: Vec<CounterMetric>,
-    /// Gauge metrics.
-    pub gauges: Vec<GaugeMetric>,
-    /// Histogram metrics.
-    pub histograms: Vec<HistogramMetric>,
-    /// Custom labels for all metrics.
-    pub labels: HashMap<String, String>,
-}
-
-impl MetricsReport {
-    /// Create a new metrics report.
-    pub fn new(agent_id: impl Into<String>, interval_ms: u64) -> Self {
-        Self {
-            agent_id: agent_id.into(),
-            interval_ms,
-            counters: Vec::new(),
-            gauges: Vec::new(),
-            histograms: Vec::new(),
-            labels: HashMap::new(),
-        }
-    }
-
-    /// Add a counter metric using builder pattern.
-    pub fn counter(mut self, name: impl Into<String>, value: u64) -> Self {
-        self.counters.push(CounterMetric::new(name, value));
-        self
-    }
-
-    /// Add a gauge metric using builder pattern.
-    pub fn gauge(mut self, name: impl Into<String>, value: f64) -> Self {
-        self.gauges.push(GaugeMetric::new(name, value));
-        self
-    }
-
-    /// Add a histogram metric using builder pattern.
-    pub fn histogram(mut self, name: impl Into<String>, values: Vec<f64>) -> Self {
-        self.histograms.push(HistogramMetric::new(name, values));
-        self
-    }
-
-    /// Add a label.
-    pub fn label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.labels.insert(key.into(), value.into());
-        self
-    }
-}
-
-/// Agent capabilities.
+/// Agent capabilities for the SDK.
+///
+/// Note: This is a simpler version than the protocol crate's AgentCapabilities.
+/// For full capabilities, use `sentinel_agent_protocol::v2::AgentCapabilities`.
 #[derive(Debug, Clone, Default)]
 pub struct AgentCapabilities {
     /// Whether the agent supports request header inspection.
@@ -290,8 +61,6 @@ pub struct AgentCapabilities {
     pub metrics: bool,
     /// Whether the agent supports configuration.
     pub configuration: bool,
-    /// Custom capabilities.
-    pub custom: HashMap<String, String>,
 }
 
 impl AgentCapabilities {
@@ -306,7 +75,6 @@ impl AgentCapabilities {
             health_check: true,
             metrics: true,
             configuration: true,
-            custom: HashMap::new(),
         }
     }
 
@@ -365,61 +133,6 @@ impl AgentCapabilitiesExt for AgentCapabilities {
     fn with_metrics(mut self) -> Self {
         self.metrics = true;
         self
-    }
-}
-
-/// V2 Agent trait with lifecycle hooks.
-#[async_trait]
-pub trait AgentV2: Send + Sync + 'static {
-    /// Get agent name.
-    fn name(&self) -> &str;
-
-    /// Get agent capabilities.
-    fn capabilities(&self) -> AgentCapabilities {
-        AgentCapabilities::default()
-    }
-
-    /// Process request headers.
-    async fn on_request_headers(
-        &self,
-        _headers: &HashMap<String, String>,
-        _metadata: &HashMap<String, String>,
-    ) -> Decision {
-        Decision::allow()
-    }
-
-    /// Process response headers.
-    async fn on_response_headers(
-        &self,
-        _headers: &HashMap<String, String>,
-        _metadata: &HashMap<String, String>,
-    ) -> Decision {
-        Decision::allow()
-    }
-
-    /// Handle health check.
-    fn health_status(&self) -> HealthStatus {
-        HealthStatus::healthy("agent")
-    }
-
-    /// Collect metrics.
-    fn collect_metrics(&self) -> MetricsReport {
-        MetricsReport::new("agent", 10_000)
-    }
-
-    /// Handle drain event.
-    fn on_drain(&self, _timeout_ms: u64, _reason: DrainReason) {
-        // Default: no-op
-    }
-
-    /// Handle shutdown event.
-    fn on_shutdown(&self, _reason: ShutdownReason, _timeout_ms: u64) {
-        // Default: no-op
-    }
-
-    /// Handle configuration update.
-    fn on_configure(&self, _config: &HashMap<String, String>) -> Result<()> {
-        Ok(())
     }
 }
 
@@ -572,9 +285,12 @@ impl<A: Agent> AgentRunnerV2<A> {
 /// Prelude module for v2 types.
 pub mod prelude {
     pub use super::{
-        AgentCapabilities, AgentCapabilitiesExt, AgentRunnerV2, AgentV2,
+        AgentCapabilities, AgentCapabilitiesExt, AgentRunnerV2, TransportConfig,
+    };
+    // Re-export protocol types
+    pub use sentinel_agent_protocol::v2::{
         CounterMetric, DrainReason, GaugeMetric, HealthStatus, HistogramMetric,
-        MetricsReport, ShutdownReason, TransportConfig,
+        MetricsReport, ShutdownReason,
     };
 }
 
@@ -590,43 +306,5 @@ mod tests {
         assert!(caps.request_headers);
         assert!(caps.health_check);
         assert!(!caps.response_headers);
-    }
-
-    #[test]
-    fn test_health_status() {
-        let healthy = HealthStatus::healthy("test-agent");
-        assert!(healthy.is_healthy());
-        assert!(!healthy.is_degraded());
-
-        let degraded = HealthStatus::degraded("test-agent", vec!["db".to_string()], 1.5);
-        assert!(!degraded.is_healthy());
-        assert!(degraded.is_degraded());
-    }
-
-    #[test]
-    fn test_metrics_report() {
-        let mut report = MetricsReport::new("test-agent", 10_000);
-        report.counters.push(CounterMetric::new("requests", 100));
-        report.gauges.push(GaugeMetric::new("latency_ms", 42.5));
-
-        assert_eq!(report.agent_id, "test-agent");
-        assert_eq!(report.counters.len(), 1);
-        assert_eq!(report.counters[0].name, "requests");
-        assert_eq!(report.counters[0].value, 100);
-        assert_eq!(report.gauges.len(), 1);
-        assert_eq!(report.gauges[0].name, "latency_ms");
-        assert_eq!(report.gauges[0].value, 42.5);
-    }
-
-    #[test]
-    fn test_metrics_report_builder() {
-        let report = MetricsReport::new("test-agent", 10_000)
-            .counter("requests", 100)
-            .gauge("latency_ms", 42.5)
-            .label("env", "prod");
-
-        assert_eq!(report.counters.len(), 1);
-        assert_eq!(report.gauges.len(), 1);
-        assert_eq!(report.labels.get("env"), Some(&"prod".to_string()));
     }
 }
