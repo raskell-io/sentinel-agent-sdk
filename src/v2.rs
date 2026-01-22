@@ -63,17 +63,212 @@ pub enum ShutdownReason {
 }
 
 /// Health status of the agent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum HealthStatus {
-    /// Agent is healthy and ready.
-    #[default]
-    Healthy,
-    /// Agent is degraded but functional.
-    Degraded,
-    /// Agent is unhealthy.
-    Unhealthy,
-    /// Agent is draining.
-    Draining,
+#[derive(Debug, Clone, PartialEq)]
+pub struct HealthStatus {
+    /// Whether the agent is healthy.
+    pub healthy: bool,
+    /// Whether the agent is degraded.
+    pub degraded: bool,
+    /// Agent identifier.
+    pub agent_id: String,
+    /// Degraded subsystems (if any).
+    pub degraded_subsystems: Vec<String>,
+    /// Timeout multiplier for degraded state.
+    pub timeout_multiplier: f64,
+}
+
+impl Default for HealthStatus {
+    fn default() -> Self {
+        Self {
+            healthy: true,
+            degraded: false,
+            agent_id: String::new(),
+            degraded_subsystems: Vec::new(),
+            timeout_multiplier: 1.0,
+        }
+    }
+}
+
+impl HealthStatus {
+    /// Create a healthy status.
+    pub fn healthy(agent_id: impl Into<String>) -> Self {
+        Self {
+            healthy: true,
+            degraded: false,
+            agent_id: agent_id.into(),
+            degraded_subsystems: Vec::new(),
+            timeout_multiplier: 1.0,
+        }
+    }
+
+    /// Create a degraded status.
+    pub fn degraded(
+        agent_id: impl Into<String>,
+        subsystems: Vec<String>,
+        timeout_multiplier: f64,
+    ) -> Self {
+        Self {
+            healthy: true,
+            degraded: true,
+            agent_id: agent_id.into(),
+            degraded_subsystems: subsystems,
+            timeout_multiplier,
+        }
+    }
+
+    /// Create an unhealthy status.
+    pub fn unhealthy(agent_id: impl Into<String>) -> Self {
+        Self {
+            healthy: false,
+            degraded: false,
+            agent_id: agent_id.into(),
+            degraded_subsystems: Vec::new(),
+            timeout_multiplier: 1.0,
+        }
+    }
+
+    /// Check if status is healthy.
+    pub fn is_healthy(&self) -> bool {
+        self.healthy && !self.degraded
+    }
+
+    /// Check if status is degraded.
+    pub fn is_degraded(&self) -> bool {
+        self.degraded
+    }
+}
+
+/// Counter metric.
+#[derive(Debug, Clone)]
+pub struct CounterMetric {
+    /// Metric name.
+    pub name: String,
+    /// Metric value.
+    pub value: u64,
+    /// Optional labels.
+    pub labels: HashMap<String, String>,
+}
+
+impl CounterMetric {
+    /// Create a new counter metric.
+    pub fn new(name: impl Into<String>, value: u64) -> Self {
+        Self {
+            name: name.into(),
+            value,
+            labels: HashMap::new(),
+        }
+    }
+
+    /// Add a label to the metric.
+    pub fn with_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.labels.insert(key.into(), value.into());
+        self
+    }
+}
+
+/// Gauge metric.
+#[derive(Debug, Clone)]
+pub struct GaugeMetric {
+    /// Metric name.
+    pub name: String,
+    /// Metric value.
+    pub value: f64,
+    /// Optional labels.
+    pub labels: HashMap<String, String>,
+}
+
+impl GaugeMetric {
+    /// Create a new gauge metric.
+    pub fn new(name: impl Into<String>, value: f64) -> Self {
+        Self {
+            name: name.into(),
+            value,
+            labels: HashMap::new(),
+        }
+    }
+
+    /// Add a label to the metric.
+    pub fn with_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.labels.insert(key.into(), value.into());
+        self
+    }
+}
+
+/// Histogram metric.
+#[derive(Debug, Clone)]
+pub struct HistogramMetric {
+    /// Metric name.
+    pub name: String,
+    /// Metric values.
+    pub values: Vec<f64>,
+    /// Optional labels.
+    pub labels: HashMap<String, String>,
+}
+
+impl HistogramMetric {
+    /// Create a new histogram metric.
+    pub fn new(name: impl Into<String>, values: Vec<f64>) -> Self {
+        Self {
+            name: name.into(),
+            values,
+            labels: HashMap::new(),
+        }
+    }
+}
+
+/// Metrics report from the agent.
+#[derive(Debug, Clone, Default)]
+pub struct MetricsReport {
+    /// Agent identifier.
+    pub agent_id: String,
+    /// Reporting interval in milliseconds.
+    pub interval_ms: u64,
+    /// Counter metrics.
+    pub counters: Vec<CounterMetric>,
+    /// Gauge metrics.
+    pub gauges: Vec<GaugeMetric>,
+    /// Histogram metrics.
+    pub histograms: Vec<HistogramMetric>,
+    /// Custom labels for all metrics.
+    pub labels: HashMap<String, String>,
+}
+
+impl MetricsReport {
+    /// Create a new metrics report.
+    pub fn new(agent_id: impl Into<String>, interval_ms: u64) -> Self {
+        Self {
+            agent_id: agent_id.into(),
+            interval_ms,
+            counters: Vec::new(),
+            gauges: Vec::new(),
+            histograms: Vec::new(),
+            labels: HashMap::new(),
+        }
+    }
+
+    /// Add a counter metric using builder pattern.
+    pub fn counter(mut self, name: impl Into<String>, value: u64) -> Self {
+        self.counters.push(CounterMetric::new(name, value));
+        self
+    }
+
+    /// Add a gauge metric using builder pattern.
+    pub fn gauge(mut self, name: impl Into<String>, value: f64) -> Self {
+        self.gauges.push(GaugeMetric::new(name, value));
+        self
+    }
+
+    /// Add a histogram metric using builder pattern.
+    pub fn histogram(mut self, name: impl Into<String>, values: Vec<f64>) -> Self {
+        self.histograms.push(HistogramMetric::new(name, values));
+        self
+    }
+
+    /// Add a label.
+    pub fn label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.labels.insert(key.into(), value.into());
+        self
+    }
 }
 
 /// Agent capabilities.
@@ -173,50 +368,6 @@ impl AgentCapabilitiesExt for AgentCapabilities {
     }
 }
 
-/// Metrics report from the agent.
-#[derive(Debug, Clone, Default)]
-pub struct MetricsReport {
-    /// Counter metrics (name -> value).
-    pub counters: HashMap<String, u64>,
-    /// Gauge metrics (name -> value).
-    pub gauges: HashMap<String, f64>,
-    /// Histogram metrics (name -> values).
-    pub histograms: HashMap<String, Vec<f64>>,
-    /// Custom labels for the metrics.
-    pub labels: HashMap<String, String>,
-}
-
-impl MetricsReport {
-    /// Create a new empty metrics report.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Add a counter metric.
-    pub fn counter(mut self, name: impl Into<String>, value: u64) -> Self {
-        self.counters.insert(name.into(), value);
-        self
-    }
-
-    /// Add a gauge metric.
-    pub fn gauge(mut self, name: impl Into<String>, value: f64) -> Self {
-        self.gauges.insert(name.into(), value);
-        self
-    }
-
-    /// Add a histogram value.
-    pub fn histogram(mut self, name: impl Into<String>, values: Vec<f64>) -> Self {
-        self.histograms.insert(name.into(), values);
-        self
-    }
-
-    /// Add a label.
-    pub fn label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.labels.insert(key.into(), value.into());
-        self
-    }
-}
-
 /// V2 Agent trait with lifecycle hooks.
 #[async_trait]
 pub trait AgentV2: Send + Sync + 'static {
@@ -248,12 +399,12 @@ pub trait AgentV2: Send + Sync + 'static {
 
     /// Handle health check.
     fn health_status(&self) -> HealthStatus {
-        HealthStatus::Healthy
+        HealthStatus::healthy("agent")
     }
 
     /// Collect metrics.
     fn collect_metrics(&self) -> MetricsReport {
-        MetricsReport::new()
+        MetricsReport::new("agent", 10_000)
     }
 
     /// Handle drain event.
@@ -422,7 +573,8 @@ impl<A: Agent> AgentRunnerV2<A> {
 pub mod prelude {
     pub use super::{
         AgentCapabilities, AgentCapabilitiesExt, AgentRunnerV2, AgentV2,
-        DrainReason, HealthStatus, MetricsReport, ShutdownReason, TransportConfig,
+        CounterMetric, DrainReason, GaugeMetric, HealthStatus, HistogramMetric,
+        MetricsReport, ShutdownReason, TransportConfig,
     };
 }
 
@@ -441,13 +593,40 @@ mod tests {
     }
 
     #[test]
+    fn test_health_status() {
+        let healthy = HealthStatus::healthy("test-agent");
+        assert!(healthy.is_healthy());
+        assert!(!healthy.is_degraded());
+
+        let degraded = HealthStatus::degraded("test-agent", vec!["db".to_string()], 1.5);
+        assert!(!degraded.is_healthy());
+        assert!(degraded.is_degraded());
+    }
+
+    #[test]
     fn test_metrics_report() {
-        let report = MetricsReport::new()
+        let mut report = MetricsReport::new("test-agent", 10_000);
+        report.counters.push(CounterMetric::new("requests", 100));
+        report.gauges.push(GaugeMetric::new("latency_ms", 42.5));
+
+        assert_eq!(report.agent_id, "test-agent");
+        assert_eq!(report.counters.len(), 1);
+        assert_eq!(report.counters[0].name, "requests");
+        assert_eq!(report.counters[0].value, 100);
+        assert_eq!(report.gauges.len(), 1);
+        assert_eq!(report.gauges[0].name, "latency_ms");
+        assert_eq!(report.gauges[0].value, 42.5);
+    }
+
+    #[test]
+    fn test_metrics_report_builder() {
+        let report = MetricsReport::new("test-agent", 10_000)
             .counter("requests", 100)
             .gauge("latency_ms", 42.5)
-            .label("agent", "test");
+            .label("env", "prod");
 
-        assert_eq!(report.counters.get("requests"), Some(&100));
-        assert_eq!(report.gauges.get("latency_ms"), Some(&42.5));
+        assert_eq!(report.counters.len(), 1);
+        assert_eq!(report.gauges.len(), 1);
+        assert_eq!(report.labels.get("env"), Some(&"prod".to_string()));
     }
 }
