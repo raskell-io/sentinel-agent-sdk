@@ -13,7 +13,7 @@ readme = "README.md"
 
 [dependencies]
 # Core protocol (re-exported)
-zentinel-agent-protocol = "0.3"
+zentinel-agent-protocol = { version = "0.5", git = "https://github.com/zentinelproxy/zentinel.git", package = "zentinel-agent-protocol" }
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
@@ -36,7 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive"], optional = true }
 
 # Derive macros
-zentinel-agent-sdk-macros = { version = "0.1", optional = true }
+zentinel-agent-sdk-macros = { version = "0.1", path = "zentinel-agent-sdk-macros", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
