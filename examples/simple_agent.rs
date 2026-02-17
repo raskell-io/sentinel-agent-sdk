@@ -2,7 +2,7 @@
 //!
 //! This agent blocks requests to `/blocked` and adds headers to all other requests.
 
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct SimpleAgent;
 

@@ -2,7 +2,7 @@
 //!
 //! These types wrap the protocol events with a more ergonomic API.
 
-use sentinel_agent_protocol::ResponseHeadersEvent;
+use zentinel_agent_protocol::ResponseHeadersEvent;
 use std::collections::HashMap;
 
 /// A simplified view of an HTTP response for agent processing.

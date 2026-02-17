@@ -1,11 +1,11 @@
 [package]
-name = "sentinel-agent-sdk-macros"
+name = "zentinel-agent-sdk-macros"
 version = "0.1.0"
 edition = "2021"
 authors = ["Raskell <hello@raskell.io>"]
-description = "Derive macros for sentinel-agent-sdk"
+description = "Derive macros for zentinel-agent-sdk"
 license = "Apache-2.0"
-repository = "https://github.com/raskell-io/sentinel-agent-sdk"
+repository = "https://github.com/zentinelproxy/zentinel-agent-sdk"
 
 [lib]
 proc-macro = true

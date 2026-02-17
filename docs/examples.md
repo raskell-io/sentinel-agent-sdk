@@ -1,13 +1,13 @@
 # Examples
 
-Common patterns and use cases for Sentinel agents.
+Common patterns and use cases for Zentinel agents.
 
 ## Basic Request Blocking
 
 Block requests based on path patterns:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct BlockingAgent {
     blocked_paths: Vec<&'static str>,
@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
 Block or allow requests based on client IP:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use std::collections::HashSet;
 
 struct IPFilterAgent {
@@ -103,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
 Validate JWT tokens:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 use serde::Deserialize;
 
@@ -182,7 +182,7 @@ async fn main() -> anyhow::Result<()> {
 Simple in-memory rate limiting:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -249,7 +249,7 @@ async fn main() -> anyhow::Result<()> {
 Add, remove, or modify headers:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct HeaderAgent;
 
@@ -262,7 +262,7 @@ impl Agent for HeaderAgent {
     async fn on_request(&self, request: &Request) -> Decision {
         Decision::allow()
             // Add headers for upstream
-            .add_request_header("X-Forwarded-By", "sentinel")
+            .add_request_header("X-Forwarded-By", "zentinel")
             .add_request_header("X-Request-ID", request.correlation_id())
             // Remove sensitive headers
             .remove_request_header("X-Internal-Token")
@@ -294,7 +294,7 @@ async fn main() -> anyhow::Result<()> {
 Agent with runtime configuration:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
@@ -374,7 +374,7 @@ async fn main() -> anyhow::Result<()> {
 Log all requests with timing:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct LoggingAgent;
 
@@ -417,7 +417,7 @@ async fn main() -> anyhow::Result<()> {
 Validate request content types:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use std::collections::HashSet;
 
 struct ContentTypeAgent {
@@ -487,7 +487,7 @@ async fn main() -> anyhow::Result<()> {
 Redirect requests to different URLs:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use std::collections::HashMap;
 
 struct RedirectAgent {
@@ -541,7 +541,7 @@ async fn main() -> anyhow::Result<()> {
 Issue challenges to suspicious requests:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use std::collections::HashMap;
 
 struct BotProtectionAgent {
@@ -620,7 +620,7 @@ async fn main() -> anyhow::Result<()> {
 Agent that performs multiple validations:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct SecurityAgent {
     suspicious_patterns: Vec<&'static str>,
@@ -685,7 +685,7 @@ async fn main() -> anyhow::Result<()> {
 Protect login endpoints with CAPTCHA challenges after failed attempts:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::sync::Mutex;
@@ -777,7 +777,7 @@ async fn main() -> anyhow::Result<()> {
 Inspect request bodies for malicious content:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use regex::Regex;
 
 struct BodyInspectionAgent {
@@ -854,8 +854,8 @@ async fn main() -> anyhow::Result<()> {
 Transform responses from upstream:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
-use sentinel_agent_protocol::BodyMutation;
+use zentinel_agent_sdk::prelude::*;
+use zentinel_agent_protocol::BodyMutation;
 use regex::Regex;
 
 struct ResponseTransformAgent {

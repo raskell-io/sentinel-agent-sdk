@@ -1,11 +1,11 @@
-# Getting Started with Sentinel Agent Rust SDK
+# Getting Started with Zentinel Agent Rust SDK
 
-This guide will walk you through creating your first Sentinel agent in Rust.
+This guide will walk you through creating your first Zentinel agent in Rust.
 
 ## Prerequisites
 
 - Rust 1.70 or later
-- A running Sentinel proxy instance (or just the SDK for development)
+- A running Zentinel proxy instance (or just the SDK for development)
 
 ## Installation
 
@@ -13,7 +13,7 @@ Add the SDK to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-sentinel-agent-sdk = { git = "https://github.com/raskell-io/sentinel-agent-rust-sdk" }
+zentinel-agent-sdk = { git = "https://github.com/zentinelproxy/zentinel-agent-rust-sdk" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -22,7 +22,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 Create a new file `src/main.rs`:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct MyAgent;
 
@@ -59,13 +59,13 @@ async fn main() {
 cargo run -- --socket /tmp/my-agent.sock
 ```
 
-Your agent is now listening on `/tmp/my-agent.sock` and ready to receive events from Sentinel.
+Your agent is now listening on `/tmp/my-agent.sock` and ready to receive events from Zentinel.
 
 ## Understanding the Agent Lifecycle
 
-When Sentinel connects to your agent, the following events can occur:
+When Zentinel connects to your agent, the following events can occur:
 
-1. **Configure** - Receive configuration from Sentinel's KDL file
+1. **Configure** - Receive configuration from Zentinel's KDL file
 2. **Request Headers** - Inspect incoming request headers
 3. **Request Body** - Inspect request body (if enabled)
 4. **Response Headers** - Inspect response from upstream
@@ -181,9 +181,9 @@ impl Agent for MyAgent {
 }
 ```
 
-## Connecting to Sentinel
+## Connecting to Zentinel
 
-Configure Sentinel to use your agent in its KDL configuration:
+Configure Zentinel to use your agent in its KDL configuration:
 
 ```kdl
 agents {
@@ -230,7 +230,7 @@ cargo run -- \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--socket PATH` | Unix socket path | `/tmp/sentinel-agent.sock` |
+| `--socket PATH` | Unix socket path | `/tmp/zentinel-agent.sock` |
 | `--log-level LEVEL` | DEBUG, INFO, WARNING, ERROR | `INFO` |
 | `--json-logs` | Output logs as JSON | disabled |
 
@@ -280,9 +280,9 @@ mod tests {
 
 - Read the [API Reference](api.md) for complete documentation
 - Browse [Examples](examples.md) for common patterns
-- See [Configuration](configuration.md) for Sentinel setup options
+- See [Configuration](configuration.md) for Zentinel setup options
 
 ## Need Help?
 
-- [GitHub Issues](https://github.com/raskell-io/sentinel-agent-rust-sdk/issues)
-- [Sentinel Documentation](https://sentinel.raskell.io/docs)
+- [GitHub Issues](https://github.com/zentinelproxy/zentinel-agent-rust-sdk/issues)
+- [Zentinel Documentation](https://zentinelproxy.io/docs)

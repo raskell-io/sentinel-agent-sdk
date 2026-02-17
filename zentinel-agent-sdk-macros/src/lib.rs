@@ -1,9 +1,9 @@
-//! Derive macros for sentinel-agent-sdk.
+//! Derive macros for zentinel-agent-sdk.
 //!
-//! This crate provides procedural macros for the Sentinel Agent SDK:
+//! This crate provides procedural macros for the Zentinel Agent SDK:
 //! - `#[derive(AgentConfig)]` - Derive configuration handling for agents
 //!
-//! These macros are re-exported from `sentinel-agent-sdk` when the `macros` feature is enabled.
+//! These macros are re-exported from `zentinel-agent-sdk` when the `macros` feature is enabled.
 
 use proc_macro::TokenStream;
 
@@ -15,7 +15,7 @@ use proc_macro::TokenStream;
 /// # Example
 ///
 /// ```ignore
-/// use sentinel_agent_sdk_macros::AgentConfig;
+/// use zentinel_agent_sdk_macros::AgentConfig;
 ///
 /// #[derive(AgentConfig)]
 /// struct MyConfig {

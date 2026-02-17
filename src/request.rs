@@ -2,7 +2,7 @@
 //!
 //! These types wrap the protocol events with a more ergonomic API.
 
-use sentinel_agent_protocol::RequestHeadersEvent;
+use zentinel_agent_protocol::RequestHeadersEvent;
 use std::collections::HashMap;
 
 /// A simplified view of an HTTP request for agent processing.
@@ -262,7 +262,7 @@ fn urlish_decode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sentinel_agent_protocol::RequestMetadata;
+    use zentinel_agent_protocol::RequestMetadata;
 
     fn make_event(method: &str, uri: &str, headers: Vec<(&str, &str)>) -> RequestHeadersEvent {
         let mut header_map = HashMap::new();

@@ -1,6 +1,6 @@
 //! An agent that demonstrates configuration from proxy's KDL file.
 //!
-//! Configure in sentinel.kdl:
+//! Configure in zentinel.kdl:
 //! ```kdl
 //! agent "rate-checker" type="custom" {
 //!     unix-socket path="/tmp/rate-checker.sock"
@@ -12,7 +12,7 @@
 //! }
 //! ```
 
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 use serde::Deserialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;

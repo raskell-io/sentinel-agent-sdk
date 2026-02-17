@@ -2,10 +2,10 @@
 
 ## Agent
 
-The trait for all Sentinel agents.
+The trait for all Zentinel agents.
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 ```
 
 ### Required Methods
@@ -46,7 +46,7 @@ Called when request headers are received. This is the main entry point for reque
 async fn on_request_body(&self, request: &Request) -> Decision
 ```
 
-Called when the request body is available (requires body inspection to be enabled in Sentinel).
+Called when the request body is available (requires body inspection to be enabled in Zentinel).
 
 **Default**: Returns `Decision::allow()`
 
@@ -102,7 +102,7 @@ impl Agent for MyAgent {
 A trait for agents with typed configuration support.
 
 ```rust
-use sentinel_agent_sdk::{ConfigurableAgent, ConfigurableAgentExt};
+use zentinel_agent_sdk::{ConfigurableAgent, ConfigurableAgentExt};
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
@@ -170,7 +170,7 @@ Called after new configuration has been applied.
 Fluent builder for agent decisions.
 
 ```rust
-use sentinel_agent_sdk::Decision;
+use zentinel_agent_sdk::Decision;
 ```
 
 ### Factory Functions
@@ -381,7 +381,7 @@ Decision::allow().with_routing_metadata("upstream", "backend-v2")
 Set a mutation for the request body.
 
 ```rust
-use sentinel_agent_protocol::BodyMutation;
+use zentinel_agent_protocol::BodyMutation;
 
 // Replace chunk content
 Decision::allow().with_request_body_mutation(BodyMutation::replace(0, "modified body".to_string()))
@@ -398,7 +398,7 @@ Decision::allow().with_request_body_mutation(BodyMutation::pass_through(0))
 Set a mutation for the response body.
 
 ```rust
-use sentinel_agent_protocol::BodyMutation;
+use zentinel_agent_protocol::BodyMutation;
 
 Decision::allow().with_response_body_mutation(BodyMutation::replace(0, "modified body".to_string()))
 ```
@@ -410,7 +410,7 @@ Decision::allow().with_response_body_mutation(BodyMutation::replace(0, "modified
 Represents an incoming HTTP request.
 
 ```rust
-use sentinel_agent_sdk::Request;
+use zentinel_agent_sdk::Request;
 ```
 
 ### Methods
@@ -582,7 +582,7 @@ request.is_multipart() // Content-Type is multipart
 Represents an HTTP response from the upstream.
 
 ```rust
-use sentinel_agent_sdk::Response;
+use zentinel_agent_sdk::Response;
 ```
 
 ### Methods
@@ -653,7 +653,7 @@ response.body_json::<T>()
 Runner for starting and managing an agent.
 
 ```rust
-use sentinel_agent_sdk::AgentRunner;
+use zentinel_agent_sdk::AgentRunner;
 ```
 
 ### Usage
@@ -695,7 +695,7 @@ Set the log level (trace, debug, info, warn, error).
 Convenience function to run an agent with CLI argument parsing.
 
 ```rust
-use sentinel_agent_sdk::run_agent;
+use zentinel_agent_sdk::run_agent;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

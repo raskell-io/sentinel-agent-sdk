@@ -3,7 +3,7 @@
 //! This module provides the `AgentRunnerV2` runner that supports both
 //! Unix domain sockets and gRPC transport for the v2 agent protocol.
 //!
-//! Types are re-exported from `sentinel_agent_protocol::v2` for compatibility.
+//! Types are re-exported from `zentinel_agent_protocol::v2` for compatibility.
 
 use crate::agent::{Agent, AgentHandler};
 use anyhow::Result;
@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use tracing_subscriber::{fmt, EnvFilter};
 
 // Re-export v2 types from the protocol crate for type compatibility
-pub use sentinel_agent_protocol::v2::{
+pub use zentinel_agent_protocol::v2::{
     AgentCapabilities,
     AgentFeatures,
     AgentHandlerV2,
@@ -26,7 +26,7 @@ pub use sentinel_agent_protocol::v2::{
 };
 
 // Alias AgentHandlerV2 as AgentV2 for SDK compatibility
-pub use sentinel_agent_protocol::v2::AgentHandlerV2 as AgentV2;
+pub use zentinel_agent_protocol::v2::AgentHandlerV2 as AgentV2;
 
 /// Transport configuration for the v2 runner.
 #[derive(Debug, Clone)]
@@ -66,7 +66,7 @@ pub trait AgentCapabilitiesExt {
     fn with_metrics(self) -> Self;
 }
 
-/// V2 protocol runner for Sentinel agents.
+/// V2 protocol runner for Zentinel agents.
 pub struct AgentRunnerV2<A: Agent> {
     agent: A,
     name: String,
@@ -125,7 +125,7 @@ impl<A: Agent> AgentRunnerV2<A> {
 
         // Determine transport
         let uds_path = self.uds_path.unwrap_or_else(|| {
-            PathBuf::from(format!("/tmp/sentinel-{}.sock", self.name))
+            PathBuf::from(format!("/tmp/zentinel-{}.sock", self.name))
         });
 
         tracing::info!(
@@ -144,7 +144,7 @@ impl<A: Agent> AgentRunnerV2<A> {
         let handler = AgentHandler::new(self.agent);
 
         // Create server
-        let server = sentinel_agent_protocol::AgentServer::new(
+        let server = zentinel_agent_protocol::AgentServer::new(
             self.name.clone(),
             uds_path.clone(),
             Box::new(handler),
@@ -218,7 +218,7 @@ pub mod prelude {
         AgentCapabilitiesExt, AgentRunnerV2, TransportConfig,
     };
     // Re-export all protocol types
-    pub use sentinel_agent_protocol::v2::{
+    pub use zentinel_agent_protocol::v2::{
         AgentCapabilities, AgentFeatures, AgentHandlerV2, AgentHandlerV2 as AgentV2,
         CounterMetric, DrainReason, GaugeMetric, HealthStatus, HistogramMetric,
         MetricsReport, ShutdownReason,

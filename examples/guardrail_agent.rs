@@ -6,8 +6,8 @@
 //! - Returns structured detection results with confidence scores
 
 use regex::Regex;
-use sentinel_agent_sdk::prelude::*;
-use sentinel_agent_sdk::{
+use zentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::{
     DetectionSeverity, GuardrailDetection, GuardrailInspectEvent, GuardrailInspectionType,
     GuardrailResponse,
 };
@@ -94,7 +94,7 @@ impl GuardrailAgent {
                     confidence: Some(0.85),
                     span: None,
                 };
-                detection.span = Some(sentinel_agent_sdk::TextSpan {
+                detection.span = Some(zentinel_agent_sdk::TextSpan {
                     start: m.start(),
                     end: m.end(),
                 });
@@ -118,7 +118,7 @@ impl GuardrailAgent {
                     confidence: Some(0.95),
                     span: None,
                 };
-                detection.span = Some(sentinel_agent_sdk::TextSpan {
+                detection.span = Some(zentinel_agent_sdk::TextSpan {
                     start: m.start(),
                     end: m.end(),
                 });

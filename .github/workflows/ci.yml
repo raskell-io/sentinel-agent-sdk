@@ -1,4 +1,4 @@
-# CI workflow for sentinel-agent-sdk
+# CI workflow for zentinel-agent-sdk
 # All jobs are disabled (if: false) to conserve GHA minutes.
 # To enable: change `if: false` to `if: true` and uncomment triggers.
 

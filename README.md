@@ -1,11 +1,11 @@
 <div align="center">
 
 <h1 align="center">
-  Sentinel Agent Rust SDK
+  Zentinel Agent Rust SDK
 </h1>
 
 <p align="center">
-  <em>Build agents that extend Sentinel's security and policy capabilities.</em><br>
+  <em>Build agents that extend Zentinel's security and policy capabilities.</em><br>
   <em>Inspect, block, redirect, and transform HTTP traffic.</em>
 </p>
 
@@ -13,8 +13,8 @@
   <a href="https://www.rust-lang.org/">
     <img alt="Rust" src="https://img.shields.io/badge/Rust-1.75+-f74c00?logo=rust&logoColor=white&style=for-the-badge">
   </a>
-  <a href="https://github.com/raskell-io/sentinel">
-    <img alt="Sentinel" src="https://img.shields.io/badge/Built%20for-Sentinel-f5a97f?style=for-the-badge">
+  <a href="https://github.com/zentinelproxy/zentinel">
+    <img alt="Zentinel" src="https://img.shields.io/badge/Built%20for-Zentinel-f5a97f?style=for-the-badge">
   </a>
   <a href="LICENSE">
     <img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-c6a0f6?style=for-the-badge">
@@ -32,7 +32,7 @@
 
 ---
 
-The Sentinel Agent Rust SDK provides a high-performance, async-first API for building agents that integrate with the [Sentinel](https://github.com/raskell-io/sentinel) reverse proxy. Agents can inspect requests and responses, block malicious traffic, add headers, and attach audit metadata—all from Rust.
+The Zentinel Agent Rust SDK provides a high-performance, async-first API for building agents that integrate with the [Zentinel](https://github.com/zentinelproxy/zentinel) reverse proxy. Agents can inspect requests and responses, block malicious traffic, add headers, and attach audit metadata—all from Rust.
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-sentinel-agent-sdk = "0.1"
+zentinel-agent-sdk = "0.1"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 ```
@@ -48,7 +48,7 @@ async-trait = "0.1"
 Create `src/main.rs`:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct MyAgent;
 
@@ -88,24 +88,24 @@ cargo run -- --socket /tmp/my-agent.sock
 | **Request/Response Wrappers** | Ergonomic access to headers, body, query params, metadata |
 | **Typed Configuration** | `ConfigurableAgent` trait with serde support |
 | **Async Native** | Built on tokio for high-performance concurrent processing |
-| **Protocol Compatible** | Full compatibility with Sentinel agent protocol v1 |
+| **Protocol Compatible** | Full compatibility with Zentinel agent protocol v1 |
 
 ## Why Agents?
 
-Sentinel's agent system moves complex logic **out of the proxy core** and into isolated, testable, independently deployable processes:
+Zentinel's agent system moves complex logic **out of the proxy core** and into isolated, testable, independently deployable processes:
 
 - **Security isolation** — WAF engines, auth validation, and custom logic run in separate processes
 - **Language flexibility** — Write agents in Python, Rust, Go, or any language
 - **Independent deployment** — Update agent logic without restarting the proxy
 - **Failure boundaries** — Agent crashes don't take down the dataplane
 
-Agents communicate with Sentinel over Unix sockets using a simple length-prefixed JSON protocol.
+Agents communicate with Zentinel over Unix sockets using a simple length-prefixed JSON protocol.
 
 ## Architecture
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌──────────────┐
-│   Client    │────────▶│   Sentinel   │────────▶│   Upstream   │
+│   Client    │────────▶│   Zentinel   │────────▶│   Upstream   │
 └─────────────┘         └──────────────┘         └──────────────┘
                                │
                                │ Unix Socket (JSON)
@@ -116,10 +116,10 @@ Agents communicate with Sentinel over Unix sockets using a simple length-prefixe
                         └──────────────┘
 ```
 
-1. Client sends request to Sentinel
-2. Sentinel forwards request headers to agent
+1. Client sends request to Zentinel
+2. Zentinel forwards request headers to agent
 3. Agent returns decision (allow, block, redirect) with optional header mutations
-4. Sentinel applies the decision
+4. Zentinel applies the decision
 5. Agent can also inspect response headers before they reach the client
 
 ---
@@ -131,7 +131,7 @@ Agents communicate with Sentinel over Unix sockets using a simple length-prefixe
 The `Agent` trait defines the hooks you can implement:
 
 ```rust
-use sentinel_agent_sdk::{Agent, Decision, Request, Response};
+use zentinel_agent_sdk::{Agent, Decision, Request, Response};
 use async_trait::async_trait;
 
 struct MyAgent;
@@ -265,7 +265,7 @@ Decision::allow()
     .add_response_header("X-Cache", "HIT")
     .remove_response_header("X-Powered-By")
 
-// Audit metadata (appears in Sentinel logs)
+// Audit metadata (appears in Zentinel logs)
 Decision::deny()
     .with_tag("blocked")
     .with_rule_id("SQLI-001")
@@ -291,7 +291,7 @@ Decision::allow()
 For agents with typed configuration:
 
 ```rust
-use sentinel_agent_sdk::{ConfigurableAgent, ConfigurableAgentExt, Decision, Request};
+use zentinel_agent_sdk::{ConfigurableAgent, ConfigurableAgentExt, Decision, Request};
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
@@ -363,14 +363,14 @@ cargo run -- \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--socket PATH` | Unix socket path | `/tmp/sentinel-agent.sock` |
+| `--socket PATH` | Unix socket path | `/tmp/zentinel-agent.sock` |
 | `--log-level LEVEL` | trace, debug, info, warn, error | `info` |
 | `--json-logs` | Output logs as JSON | disabled |
 
 ### Programmatic
 
 ```rust
-use sentinel_agent_sdk::AgentRunner;
+use zentinel_agent_sdk::AgentRunner;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -386,9 +386,9 @@ async fn main() -> anyhow::Result<()> {
 
 ---
 
-## Sentinel Configuration
+## Zentinel Configuration
 
-Configure Sentinel to connect to your agent:
+Configure Zentinel to connect to your agent:
 
 ```kdl
 agents {
@@ -489,7 +489,7 @@ cargo test
 ### Project Structure
 
 ```
-sentinel-agent-rust-sdk/
+zentinel-agent-rust-sdk/
 ├── src/
 │   ├── lib.rs            # Public API exports and prelude
 │   ├── agent.rs          # Agent trait and AgentHandler
@@ -506,7 +506,7 @@ sentinel-agent-rust-sdk/
 
 ## Protocol
 
-This SDK implements Sentinel Agent Protocol v1:
+This SDK implements Zentinel Agent Protocol v1:
 
 - **Transport**: Unix domain sockets (UDS) or gRPC
 - **Encoding**: Length-prefixed JSON (4-byte big-endian length prefix) for UDS
@@ -516,15 +516,15 @@ This SDK implements Sentinel Agent Protocol v1:
 
 The protocol is designed for low latency and high throughput, with support for streaming body inspection.
 
-For the canonical protocol specification, see the [Sentinel Agent Protocol documentation](https://github.com/raskell-io/sentinel/tree/main/crates/agent-protocol).
+For the canonical protocol specification, see the [Zentinel Agent Protocol documentation](https://github.com/zentinelproxy/zentinel/tree/main/crates/agent-protocol).
 
 ---
 
 ## Community
 
-- [Issues](https://github.com/raskell-io/sentinel-agent-rust-sdk/issues) — Bug reports and feature requests
-- [Sentinel Discussions](https://github.com/raskell-io/sentinel/discussions) — Questions and ideas
-- [Sentinel Documentation](https://sentinel.raskell.io/docs) — Proxy documentation
+- [Issues](https://github.com/zentinelproxy/zentinel-agent-rust-sdk/issues) — Bug reports and feature requests
+- [Zentinel Discussions](https://github.com/zentinelproxy/zentinel/discussions) — Questions and ideas
+- [Zentinel Documentation](https://zentinelproxy.io/docs) — Proxy documentation
 
 Contributions welcome. Please open an issue to discuss significant changes before submitting a PR.
 

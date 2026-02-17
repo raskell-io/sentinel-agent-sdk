@@ -1,13 +1,13 @@
-//! Sentinel Agent SDK - Build proxy agents with less boilerplate.
+//! Zentinel Agent SDK - Build proxy agents with less boilerplate.
 //!
-//! This crate provides a high-level SDK for building Sentinel proxy agents.
+//! This crate provides a high-level SDK for building Zentinel proxy agents.
 //! It wraps the low-level protocol with ergonomic types and handles common
 //! patterns like CLI parsing, logging setup, and graceful shutdown.
 //!
 //! # Quick Start
 //!
 //! ```ignore
-//! use sentinel_agent_sdk::prelude::*;
+//! use zentinel_agent_sdk::prelude::*;
 //!
 //! struct MyAgent;
 //!
@@ -37,7 +37,7 @@
 //! The SDK supports the v2 agent protocol with gRPC and UDS transports:
 //!
 //! ```ignore
-//! use sentinel_agent_sdk::v2::{AgentRunnerV2, TransportConfig};
+//! use zentinel_agent_sdk::v2::{AgentRunnerV2, TransportConfig};
 //!
 //! AgentRunnerV2::new(MyAgent)
 //!     .with_name("my-agent")
@@ -84,7 +84,7 @@ pub use tokio;
 pub use tracing;
 
 // Re-export protocol types that users might need
-pub use sentinel_agent_protocol::{
+pub use zentinel_agent_protocol::{
     AgentResponse, ConfigureEvent, Decision as ProtocolDecision, DetectionSeverity,
     GuardrailDetection, GuardrailInspectEvent, GuardrailInspectionType, GuardrailResponse,
     HeaderOp, RequestHeadersEvent, RequestMetadata, ResponseHeadersEvent, TextSpan,
@@ -93,7 +93,7 @@ pub use sentinel_agent_protocol::{
 /// Prelude module for convenient imports.
 ///
 /// ```ignore
-/// use sentinel_agent_sdk::prelude::*;
+/// use zentinel_agent_sdk::prelude::*;
 /// ```
 pub mod prelude {
     pub use crate::agent::{Agent, ConfigurableAgent, ConfigurableAgentExt};

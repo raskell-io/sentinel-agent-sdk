@@ -1,11 +1,11 @@
 # Quickstart Guide
 
-This guide will help you create your first Sentinel agent in under 5 minutes.
+This guide will help you create your first Zentinel agent in under 5 minutes.
 
 ## Prerequisites
 
 - Rust 1.75+
-- Sentinel proxy (for testing with real traffic)
+- Zentinel proxy (for testing with real traffic)
 
 ## Step 1: Create a New Project
 
@@ -18,7 +18,7 @@ Add dependencies to `Cargo.toml`:
 
 ```toml
 [dependencies]
-sentinel-agent-sdk = "0.1"
+zentinel-agent-sdk = "0.1"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 anyhow = "1"
@@ -29,7 +29,7 @@ anyhow = "1"
 Replace the contents of `src/main.rs`:
 
 ```rust
-use sentinel_agent_sdk::prelude::*;
+use zentinel_agent_sdk::prelude::*;
 
 struct MyAgent;
 
@@ -78,9 +78,9 @@ You should see:
 [my-agent] INFO: Agent 'my-agent' listening on /tmp/my-agent.sock
 ```
 
-## Step 4: Configure Sentinel
+## Step 4: Configure Zentinel
 
-Add the agent to your Sentinel configuration (`sentinel.kdl`):
+Add the agent to your Zentinel configuration (`zentinel.kdl`):
 
 ```kdl
 agents {
@@ -114,7 +114,7 @@ routes {
 
 ## Step 5: Test It
 
-With Sentinel running, send a test request:
+With Zentinel running, send a test request:
 
 ```bash
 # This should pass through
@@ -130,7 +130,7 @@ The `AgentRunner` supports these CLI arguments:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--socket PATH` | Unix socket path | `/tmp/sentinel-agent.sock` |
+| `--socket PATH` | Unix socket path | `/tmp/zentinel-agent.sock` |
 | `--log-level LEVEL` | Log level (trace, debug, info, warn, error) | `info` |
 | `--json-logs` | Enable JSON log format | disabled |
 
@@ -138,4 +138,4 @@ The `AgentRunner` supports these CLI arguments:
 
 - Read the [API Reference](api.md) for complete documentation
 - See [Examples](examples.md) for common patterns
-- Learn about [Sentinel Configuration](configuration.md) options
+- Learn about [Zentinel Configuration](configuration.md) options

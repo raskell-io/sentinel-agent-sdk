@@ -5,7 +5,7 @@
 
 use crate::{Decision, Request, Response};
 use async_trait::async_trait;
-use sentinel_agent_protocol::{
+use zentinel_agent_protocol::{
     AgentResponse, Decision as ProtocolDecision, GuardrailInspectEvent, GuardrailResponse,
     PROTOCOL_VERSION,
 };
@@ -16,13 +16,13 @@ use tokio::sync::RwLock;
 
 /// A simplified agent trait for processing HTTP traffic.
 ///
-/// Implement this trait to create a Sentinel agent. The SDK handles
+/// Implement this trait to create a Zentinel agent. The SDK handles
 /// protocol details, connection management, and error handling.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use sentinel_agent_sdk::{Agent, Request, Decision};
+/// use zentinel_agent_sdk::{Agent, Request, Decision};
 /// use async_trait::async_trait;
 ///
 /// struct MyAgent;
@@ -122,7 +122,7 @@ pub trait Agent: Send + Sync + 'static {
 /// # Example
 ///
 /// ```ignore
-/// use sentinel_agent_sdk::{ConfigurableAgent, Request, Decision};
+/// use zentinel_agent_sdk::{ConfigurableAgent, Request, Decision};
 /// use serde::Deserialize;
 ///
 /// #[derive(Default, Deserialize)]
@@ -199,10 +199,10 @@ impl<A: Agent> AgentHandler<A> {
 }
 
 #[async_trait]
-impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
+impl<A: Agent> zentinel_agent_protocol::AgentHandler for AgentHandler<A> {
     async fn on_configure(
         &self,
-        event: sentinel_agent_protocol::ConfigureEvent,
+        event: zentinel_agent_protocol::ConfigureEvent,
     ) -> AgentResponse {
         match self.agent.on_configure(event.config).await {
             Ok(()) => AgentResponse::default_allow(),
@@ -227,7 +227,7 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
 
     async fn on_request_headers(
         &self,
-        event: sentinel_agent_protocol::RequestHeadersEvent,
+        event: zentinel_agent_protocol::RequestHeadersEvent,
     ) -> AgentResponse {
         let request = Request::from_headers_event(&event);
 
@@ -240,7 +240,7 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
 
     async fn on_request_body_chunk(
         &self,
-        event: sentinel_agent_protocol::RequestBodyChunkEvent,
+        event: zentinel_agent_protocol::RequestBodyChunkEvent,
     ) -> AgentResponse {
         // Get cached request and add body
         let cache = self.request_cache.read().await;
@@ -256,7 +256,7 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
 
     async fn on_response_headers(
         &self,
-        event: sentinel_agent_protocol::ResponseHeadersEvent,
+        event: zentinel_agent_protocol::ResponseHeadersEvent,
     ) -> AgentResponse {
         let response = Response::from_headers_event(&event);
 
@@ -270,7 +270,7 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
 
     async fn on_response_body_chunk(
         &self,
-        event: sentinel_agent_protocol::ResponseBodyChunkEvent,
+        event: zentinel_agent_protocol::ResponseBodyChunkEvent,
     ) -> AgentResponse {
         // For response body, we need both request and response context
         // This is a simplified implementation - full implementation would
@@ -279,7 +279,7 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
         if let Some(request) = cache.get(&event.correlation_id) {
             // Create a minimal response with body
             let body = base64_decode(&event.data).unwrap_or_default();
-            let response = Response::from_headers_event(&sentinel_agent_protocol::ResponseHeadersEvent {
+            let response = Response::from_headers_event(&zentinel_agent_protocol::ResponseHeadersEvent {
                 correlation_id: event.correlation_id.clone(),
                 status: 200,
                 headers: HashMap::new(),
@@ -291,7 +291,7 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
 
     async fn on_request_complete(
         &self,
-        event: sentinel_agent_protocol::RequestCompleteEvent,
+        event: zentinel_agent_protocol::RequestCompleteEvent,
     ) -> AgentResponse {
         // Get cached request for the callback
         let request = self.request_cache.write().await.remove(&event.correlation_id);
@@ -333,7 +333,7 @@ impl<A: Agent> sentinel_agent_protocol::AgentHandler for AgentHandler<A> {
             request_headers: vec![],
             response_headers: vec![],
             routing_metadata: HashMap::new(),
-            audit: sentinel_agent_protocol::AuditMetadata {
+            audit: zentinel_agent_protocol::AuditMetadata {
                 tags,
                 rule_ids,
                 confidence: Some(response.confidence as f32),
@@ -421,14 +421,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_request_complete() {
-        use sentinel_agent_protocol::AgentHandler as ProtocolHandler;
+        use zentinel_agent_protocol::AgentHandler as ProtocolHandler;
 
         let agent = MetricsAgent::new();
         let handler = AgentHandler::new(agent);
 
         // First send a request to populate the cache
-        let request_event = sentinel_agent_protocol::RequestHeadersEvent {
-            metadata: sentinel_agent_protocol::RequestMetadata {
+        let request_event = zentinel_agent_protocol::RequestHeadersEvent {
+            metadata: zentinel_agent_protocol::RequestMetadata {
                 correlation_id: "test-123".to_string(),
                 request_id: "req-456".to_string(),
                 client_ip: "127.0.0.1".to_string(),
@@ -449,7 +449,7 @@ mod tests {
         handler.on_request_headers(request_event).await;
 
         // Now send the complete event
-        let complete_event = sentinel_agent_protocol::RequestCompleteEvent {
+        let complete_event = zentinel_agent_protocol::RequestCompleteEvent {
             correlation_id: "test-123".to_string(),
             status: 200,
             duration_ms: 42,

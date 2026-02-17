@@ -1,10 +1,10 @@
-# Sentinel Configuration
+# Zentinel Configuration
 
-How to configure Sentinel to use your Rust agents.
+How to configure Zentinel to use your Rust agents.
 
 ## Agent Definition
 
-Define your agent in the `agents` block of your Sentinel configuration:
+Define your agent in the `agents` block of your Zentinel configuration:
 
 ```kdl
 agents {

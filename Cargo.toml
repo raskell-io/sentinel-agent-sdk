@@ -1,19 +1,19 @@
 [package]
-name = "sentinel-agent-sdk"
+name = "zentinel-agent-sdk"
 version = "0.2.0"
 edition = "2021"
 authors = ["Raskell <hello@raskell.io>"]
-description = "High-level SDK for building Sentinel proxy agents"
+description = "High-level SDK for building Zentinel proxy agents"
 license = "Apache-2.0"
-repository = "https://github.com/raskell-io/sentinel-agent-sdk"
-documentation = "https://docs.rs/sentinel-agent-sdk"
-keywords = ["sentinel", "proxy", "agent", "sdk", "waf"]
+repository = "https://github.com/zentinelproxy/zentinel-agent-sdk"
+documentation = "https://docs.rs/zentinel-agent-sdk"
+keywords = ["zentinel", "proxy", "agent", "sdk", "waf"]
 categories = ["network-programming", "web-programming"]
 readme = "README.md"
 
 [dependencies]
 # Core protocol (re-exported)
-sentinel-agent-protocol = "0.3"
+zentinel-agent-protocol = "0.3"
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
@@ -36,7 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive"], optional = true }
 
 # Derive macros
-sentinel-agent-sdk-macros = { version = "0.1", optional = true }
+zentinel-agent-sdk-macros = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -45,9 +45,9 @@ regex = "1"
 [features]
 default = ["cli", "macros", "v2"]
 cli = ["clap"]
-macros = ["sentinel-agent-sdk-macros"]
+macros = ["zentinel-agent-sdk-macros"]
 testing = []
 v2 = []
 
 [workspace]
-members = ["sentinel-agent-sdk-macros"]
+members = ["zentinel-agent-sdk-macros"]

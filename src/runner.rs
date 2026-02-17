@@ -19,21 +19,21 @@ pub struct RunnerConfig {
 impl Default for RunnerConfig {
     fn default() -> Self {
         Self {
-            socket_path: PathBuf::from("/tmp/sentinel-agent.sock"),
+            socket_path: PathBuf::from("/tmp/zentinel-agent.sock"),
             name: "agent".to_string(),
             json_logs: false,
         }
     }
 }
 
-/// Runner for Sentinel agents.
+/// Runner for Zentinel agents.
 ///
 /// Handles CLI parsing, logging setup, and server lifecycle.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use sentinel_agent_sdk::{AgentRunner, Agent, Request, Decision};
+/// use zentinel_agent_sdk::{AgentRunner, Agent, Request, Decision};
 /// use async_trait::async_trait;
 ///
 /// struct MyAgent;
@@ -118,7 +118,7 @@ impl<A: Agent> AgentRunner<A> {
         let handler = AgentHandler::new(self.agent);
 
         // Create server
-        let server = sentinel_agent_protocol::AgentServer::new(
+        let server = zentinel_agent_protocol::AgentServer::new(
             self.config.name.clone(),
             self.config.socket_path.clone(),
             Box::new(handler),
@@ -194,12 +194,12 @@ pub mod cli {
     use super::*;
     use clap::Parser;
 
-    /// Standard CLI arguments for Sentinel agents.
+    /// Standard CLI arguments for Zentinel agents.
     #[derive(Parser, Debug)]
     #[command(author, version, about)]
     pub struct AgentArgs {
         /// Unix socket path for the agent server
-        #[arg(short, long, default_value = "/tmp/sentinel-agent.sock")]
+        #[arg(short, long, default_value = "/tmp/zentinel-agent.sock")]
         pub socket: PathBuf,
 
         /// Enable JSON logging format
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn test_runner_config_default() {
         let config = RunnerConfig::default();
-        assert_eq!(config.socket_path, PathBuf::from("/tmp/sentinel-agent.sock"));
+        assert_eq!(config.socket_path, PathBuf::from("/tmp/zentinel-agent.sock"));
         assert!(!config.json_logs);
     }
 

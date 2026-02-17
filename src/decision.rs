@@ -2,7 +2,7 @@
 //!
 //! Provides an ergonomic way to construct agent responses.
 
-use sentinel_agent_protocol::{AgentResponse, AuditMetadata, BodyMutation, Decision as ProtocolDecision, HeaderOp, PROTOCOL_VERSION};
+use zentinel_agent_protocol::{AgentResponse, AuditMetadata, BodyMutation, Decision as ProtocolDecision, HeaderOp, PROTOCOL_VERSION};
 use std::collections::HashMap;
 
 /// A builder for constructing agent decisions.
@@ -10,7 +10,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```ignore
-/// use sentinel_agent_sdk::Decision;
+/// use zentinel_agent_sdk::Decision;
 ///
 /// // Simple allow
 /// let decision = Decision::allow();
@@ -128,7 +128,7 @@ impl Decision {
     /// # Examples
     ///
     /// ```ignore
-    /// use sentinel_agent_sdk::Decision;
+    /// use zentinel_agent_sdk::Decision;
     /// use std::collections::HashMap;
     ///
     /// // Simple challenge
