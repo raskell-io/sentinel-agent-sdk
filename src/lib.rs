@@ -85,7 +85,7 @@ pub use tracing;
 
 // Re-export protocol types that users might need
 pub use zentinel_agent_protocol::{
-    AgentResponse, ConfigureEvent, Decision as ProtocolDecision, DetectionSeverity,
+    AgentResponse, Decision as ProtocolDecision, DetectionSeverity,
     GuardrailDetection, GuardrailInspectEvent, GuardrailInspectionType, GuardrailResponse,
     HeaderOp, RequestHeadersEvent, RequestMetadata, ResponseHeadersEvent, TextSpan,
 };

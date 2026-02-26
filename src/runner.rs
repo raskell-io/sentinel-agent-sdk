@@ -117,8 +117,8 @@ impl<A: Agent> AgentRunner<A> {
         // Create handler
         let handler = AgentHandler::new(self.agent);
 
-        // Create server
-        let server = zentinel_agent_protocol::AgentServer::new(
+        // Create server (v2 UDS protocol)
+        let server = zentinel_agent_protocol::v2::UdsAgentServerV2::new(
             self.config.name.clone(),
             self.config.socket_path.clone(),
             Box::new(handler),

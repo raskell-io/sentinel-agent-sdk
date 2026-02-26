@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use zentinel_agent_protocol::{
     AgentResponse, Decision as ProtocolDecision, GuardrailInspectEvent, GuardrailResponse,
 };
-use zentinel_agent_protocol::v2::PROTOCOL_VERSION_2;
+use zentinel_agent_protocol::v2::{AgentCapabilities, AgentHandlerV2, PROTOCOL_VERSION_2};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -199,30 +199,17 @@ impl<A: Agent> AgentHandler<A> {
 }
 
 #[async_trait]
-impl<A: Agent> zentinel_agent_protocol::AgentHandler for AgentHandler<A> {
+impl<A: Agent> AgentHandlerV2 for AgentHandler<A> {
+    fn capabilities(&self) -> AgentCapabilities {
+        AgentCapabilities::default()
+    }
+
     async fn on_configure(
         &self,
-        event: zentinel_agent_protocol::ConfigureEvent,
-    ) -> AgentResponse {
-        match self.agent.on_configure(event.config).await {
-            Ok(()) => AgentResponse::default_allow(),
-            Err(msg) => AgentResponse {
-                version: PROTOCOL_VERSION_2,
-                decision: ProtocolDecision::Block {
-                    status: 500,
-                    body: Some(msg),
-                    headers: None,
-                },
-                request_headers: vec![],
-                response_headers: vec![],
-                routing_metadata: HashMap::new(),
-                audit: Default::default(),
-                needs_more: false,
-                request_body_mutation: None,
-                response_body_mutation: None,
-                websocket_decision: None,
-            },
-        }
+        config: serde_json::Value,
+        _version: Option<String>,
+    ) -> bool {
+        self.agent.on_configure(config).await.is_ok()
     }
 
     async fn on_request_headers(
@@ -421,7 +408,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_request_complete() {
-        use zentinel_agent_protocol::AgentHandler as ProtocolHandler;
+        use zentinel_agent_protocol::v2::AgentHandlerV2 as ProtocolHandler;
 
         let agent = MetricsAgent::new();
         let handler = AgentHandler::new(agent);

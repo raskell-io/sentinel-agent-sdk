@@ -19,10 +19,12 @@ pub use zentinel_agent_protocol::v2::{
     CounterMetric,
     DrainReason,
     GaugeMetric,
+    GrpcAgentServerV2,
     HealthStatus,
     HistogramMetric,
     MetricsReport,
     ShutdownReason,
+    UdsAgentServerV2,
 };
 
 // Alias AgentHandlerV2 as AgentV2 for SDK compatibility
@@ -123,49 +125,89 @@ impl<A: Agent> AgentRunnerV2<A> {
         // Setup logging
         self.setup_logging();
 
-        // Determine transport
-        let uds_path = self.uds_path.unwrap_or_else(|| {
-            PathBuf::from(format!("/tmp/zentinel-{}.sock", self.name))
-        });
+        match (&self.grpc_address, &self.uds_path) {
+            (Some(grpc_addr), Some(uds_path)) => {
+                // Both transports
+                tracing::info!(
+                    agent = %self.name,
+                    socket = %uds_path.display(),
+                    grpc = %grpc_addr,
+                    "Starting agent (v2 protocol, UDS + gRPC)"
+                );
 
-        tracing::info!(
-            agent = %self.name,
-            socket = %uds_path.display(),
-            grpc = ?self.grpc_address,
-            "Starting agent (v2 protocol)"
-        );
+                let handler = AgentHandler::new(self.agent);
+                let handler = std::sync::Arc::new(handler);
 
-        // Remove existing socket file
-        if uds_path.exists() {
-            std::fs::remove_file(&uds_path)?;
-        }
+                let uds_server = zentinel_agent_protocol::v2::UdsAgentServerV2::new(
+                    self.name.clone(),
+                    uds_path.clone(),
+                    Box::new(ArcHandler(handler.clone())),
+                );
+                let grpc_server = zentinel_agent_protocol::v2::GrpcAgentServerV2::new(
+                    self.name.clone(),
+                    Box::new(ArcHandler(handler)),
+                );
 
-        // Create handler
-        let handler = AgentHandler::new(self.agent);
+                let uds_handle = tokio::spawn(async move { uds_server.run().await });
+                let grpc_addr = *grpc_addr;
+                let grpc_handle = tokio::spawn(async move { grpc_server.run(grpc_addr).await });
 
-        // Create server
-        let server = zentinel_agent_protocol::AgentServer::new(
-            self.name.clone(),
-            uds_path.clone(),
-            Box::new(handler),
-        );
+                Self::wait_for_shutdown().await;
+                tracing::info!("Shutting down agent");
+                uds_handle.abort();
+                grpc_handle.abort();
+            }
+            (Some(grpc_addr), None) => {
+                // gRPC only
+                tracing::info!(
+                    agent = %self.name,
+                    grpc = %grpc_addr,
+                    "Starting agent (v2 protocol, gRPC)"
+                );
 
-        // Start server
-        let server_handle = tokio::spawn(async move {
-            server.run().await
-        });
+                let handler = AgentHandler::new(self.agent);
+                let server = zentinel_agent_protocol::v2::GrpcAgentServerV2::new(
+                    self.name.clone(),
+                    Box::new(handler),
+                );
 
-        // Wait for shutdown signal
-        Self::wait_for_shutdown().await;
+                let grpc_addr = *grpc_addr;
+                let server_handle = tokio::spawn(async move { server.run(grpc_addr).await });
 
-        tracing::info!("Shutting down agent");
+                Self::wait_for_shutdown().await;
+                tracing::info!("Shutting down agent");
+                server_handle.abort();
+            }
+            _ => {
+                // UDS only (default)
+                let uds_path = self.uds_path.unwrap_or_else(|| {
+                    PathBuf::from(format!("/tmp/zentinel-{}.sock", self.name))
+                });
 
-        // Abort the server task
-        server_handle.abort();
+                tracing::info!(
+                    agent = %self.name,
+                    socket = %uds_path.display(),
+                    "Starting agent (v2 protocol, UDS)"
+                );
 
-        // Clean up socket file
-        if uds_path.exists() {
-            let _ = std::fs::remove_file(&uds_path);
+                let handler = AgentHandler::new(self.agent);
+                let server = zentinel_agent_protocol::v2::UdsAgentServerV2::new(
+                    self.name.clone(),
+                    uds_path.clone(),
+                    Box::new(handler),
+                );
+
+                let server_handle = tokio::spawn(async move { server.run().await });
+
+                Self::wait_for_shutdown().await;
+                tracing::info!("Shutting down agent");
+                server_handle.abort();
+
+                // Clean up socket file
+                if uds_path.exists() {
+                    let _ = std::fs::remove_file(&uds_path);
+                }
+            }
         }
 
         Ok(())
@@ -209,6 +251,63 @@ impl<A: Agent> AgentRunnerV2<A> {
             _ = ctrl_c => {},
             _ = terminate => {},
         }
+    }
+}
+
+/// Wrapper that delegates `AgentHandlerV2` to an `Arc`-wrapped handler,
+/// allowing the same handler to be shared between UDS and gRPC servers.
+struct ArcHandler<A: Agent>(std::sync::Arc<AgentHandler<A>>);
+
+#[async_trait::async_trait]
+impl<A: Agent> zentinel_agent_protocol::v2::AgentHandlerV2 for ArcHandler<A> {
+    fn capabilities(&self) -> AgentCapabilities {
+        self.0.capabilities()
+    }
+
+    async fn on_configure(&self, config: serde_json::Value, version: Option<String>) -> bool {
+        self.0.on_configure(config, version).await
+    }
+
+    async fn on_request_headers(
+        &self,
+        event: zentinel_agent_protocol::RequestHeadersEvent,
+    ) -> zentinel_agent_protocol::AgentResponse {
+        self.0.on_request_headers(event).await
+    }
+
+    async fn on_request_body_chunk(
+        &self,
+        event: zentinel_agent_protocol::RequestBodyChunkEvent,
+    ) -> zentinel_agent_protocol::AgentResponse {
+        self.0.on_request_body_chunk(event).await
+    }
+
+    async fn on_response_headers(
+        &self,
+        event: zentinel_agent_protocol::ResponseHeadersEvent,
+    ) -> zentinel_agent_protocol::AgentResponse {
+        self.0.on_response_headers(event).await
+    }
+
+    async fn on_response_body_chunk(
+        &self,
+        event: zentinel_agent_protocol::ResponseBodyChunkEvent,
+    ) -> zentinel_agent_protocol::AgentResponse {
+        self.0.on_response_body_chunk(event).await
+    }
+
+    async fn on_request_complete(
+        &self,
+        event: zentinel_agent_protocol::RequestCompleteEvent,
+    ) -> zentinel_agent_protocol::AgentResponse {
+        self.0.on_request_complete(event).await
+    }
+
+    async fn on_guardrail_inspect(
+        &self,
+        event: zentinel_agent_protocol::GuardrailInspectEvent,
+    ) -> zentinel_agent_protocol::AgentResponse {
+        self.0.on_guardrail_inspect(event).await
     }
 }
 
