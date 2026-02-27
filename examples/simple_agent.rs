@@ -29,10 +29,10 @@ impl Agent for SimpleAgent {
         }
 
         // Require auth for /api paths
-        if request.path_starts_with("/api") {
-            if request.header("authorization").is_none() {
-                return Decision::unauthorized().with_body("Authorization required");
-            }
+        if request.path_starts_with("/api")
+            && request.header("authorization").is_none()
+        {
+            return Decision::unauthorized().with_body("Authorization required");
         }
 
         // Allow other requests, adding some headers
