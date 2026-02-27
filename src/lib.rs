@@ -74,6 +74,8 @@ pub use agent::{Agent, AgentHandler, ConfigurableAgent, ConfigurableAgentExt};
 pub use decision::{decisions, Decision};
 pub use request::Request;
 pub use response::Response;
+#[cfg(feature = "cli")]
+pub use runner::cli;
 pub use runner::{AgentRunner, RunnerConfig};
 
 // Re-export commonly used items from dependencies
@@ -85,9 +87,9 @@ pub use tracing;
 
 // Re-export protocol types that users might need
 pub use zentinel_agent_protocol::{
-    AgentResponse, Decision as ProtocolDecision, DetectionSeverity,
-    GuardrailDetection, GuardrailInspectEvent, GuardrailInspectionType, GuardrailResponse,
-    HeaderOp, RequestHeadersEvent, RequestMetadata, ResponseHeadersEvent, TextSpan,
+    AgentResponse, Decision as ProtocolDecision, DetectionSeverity, GuardrailDetection,
+    GuardrailInspectEvent, GuardrailInspectionType, GuardrailResponse, HeaderOp,
+    RequestHeadersEvent, RequestMetadata, ResponseHeadersEvent, TextSpan,
 };
 
 /// Prelude module for convenient imports.

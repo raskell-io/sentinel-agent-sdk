@@ -2,8 +2,8 @@
 //!
 //! These types wrap the protocol events with a more ergonomic API.
 
-use zentinel_agent_protocol::ResponseHeadersEvent;
 use std::collections::HashMap;
+use zentinel_agent_protocol::ResponseHeadersEvent;
 
 /// A simplified view of an HTTP response for agent processing.
 ///
@@ -119,8 +119,7 @@ impl Response {
 
     /// Get the Content-Length header as a number.
     pub fn content_length(&self) -> Option<usize> {
-        self.header("content-length")
-            .and_then(|v| v.parse().ok())
+        self.header("content-length").and_then(|v| v.parse().ok())
     }
 
     /// Get the Location header (for redirects).
@@ -148,7 +147,9 @@ impl Response {
 
     /// Parse the response body as JSON.
     pub fn body_json<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
-        self.body.as_ref().and_then(|b| serde_json::from_slice(b).ok())
+        self.body
+            .as_ref()
+            .and_then(|b| serde_json::from_slice(b).ok())
     }
 }
 
@@ -159,7 +160,10 @@ mod tests {
     fn make_event(status: u16, headers: Vec<(&str, &str)>) -> ResponseHeadersEvent {
         let mut header_map = HashMap::new();
         for (k, v) in headers {
-            header_map.entry(k.to_lowercase()).or_insert_with(Vec::new).push(v.to_string());
+            header_map
+                .entry(k.to_lowercase())
+                .or_insert_with(Vec::new)
+                .push(v.to_string());
         }
 
         ResponseHeadersEvent {
@@ -213,20 +217,24 @@ mod tests {
         assert!(res.is_html());
         assert!(res.has_header("Content-Type")); // Case insensitive
         assert_eq!(res.header("x-custom"), Some("value1"));
-        assert_eq!(res.header_all("x-custom"), Some(&["value1".to_string(), "value2".to_string()][..]));
+        assert_eq!(
+            res.header_all("x-custom"),
+            Some(&["value1".to_string(), "value2".to_string()][..])
+        );
     }
 
     #[test]
     fn test_body() {
         let event = make_event(200, vec![("content-type", "application/json")]);
-        let res = Response::from_headers_event(&event)
-            .with_body(b"{\"status\": \"ok\"}".to_vec());
+        let res = Response::from_headers_event(&event).with_body(b"{\"status\": \"ok\"}".to_vec());
 
         assert!(res.body().is_some());
         assert_eq!(res.body_str(), Some("{\"status\": \"ok\"}"));
 
         #[derive(serde::Deserialize)]
-        struct Status { status: String }
+        struct Status {
+            status: String,
+        }
         let data: Option<Status> = res.body_json();
         assert_eq!(data.map(|d| d.status), Some("ok".to_string()));
     }

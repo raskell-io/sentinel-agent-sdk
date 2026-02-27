@@ -125,9 +125,7 @@ impl<A: Agent> AgentRunner<A> {
         );
 
         // Start server with graceful shutdown
-        let server_handle = tokio::spawn(async move {
-            server.run().await
-        });
+        let server_handle = tokio::spawn(async move { server.run().await });
 
         // Wait for shutdown signal
         Self::wait_for_shutdown().await;
@@ -146,18 +144,12 @@ impl<A: Agent> AgentRunner<A> {
     }
 
     fn setup_logging(&self) {
-        let filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("info"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
         if self.config.json_logs {
-            fmt()
-                .with_env_filter(filter)
-                .json()
-                .init();
+            fmt().with_env_filter(filter).json().init();
         } else {
-            fmt()
-                .with_env_filter(filter)
-                .init();
+            fmt().with_env_filter(filter).init();
         }
     }
 
@@ -230,7 +222,10 @@ mod tests {
     #[test]
     fn test_runner_config_default() {
         let config = RunnerConfig::default();
-        assert_eq!(config.socket_path, PathBuf::from("/tmp/zentinel-agent.sock"));
+        assert_eq!(
+            config.socket_path,
+            PathBuf::from("/tmp/zentinel-agent.sock")
+        );
         assert!(!config.json_logs);
     }
 

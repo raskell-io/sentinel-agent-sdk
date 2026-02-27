@@ -13,17 +13,8 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 // Re-export v2 types from the protocol crate for type compatibility
 pub use zentinel_agent_protocol::v2::{
-    AgentCapabilities,
-    AgentFeatures,
-    AgentHandlerV2,
-    CounterMetric,
-    DrainReason,
-    GaugeMetric,
-    GrpcAgentServerV2,
-    HealthStatus,
-    HistogramMetric,
-    MetricsReport,
-    ShutdownReason,
+    AgentCapabilities, AgentFeatures, AgentHandlerV2, CounterMetric, DrainReason, GaugeMetric,
+    GrpcAgentServerV2, HealthStatus, HistogramMetric, MetricsReport, ShutdownReason,
     UdsAgentServerV2,
 };
 
@@ -180,9 +171,9 @@ impl<A: Agent> AgentRunnerV2<A> {
             }
             _ => {
                 // UDS only (default)
-                let uds_path = self.uds_path.unwrap_or_else(|| {
-                    PathBuf::from(format!("/tmp/zentinel-{}.sock", self.name))
-                });
+                let uds_path = self
+                    .uds_path
+                    .unwrap_or_else(|| PathBuf::from(format!("/tmp/zentinel-{}.sock", self.name)));
 
                 tracing::info!(
                     agent = %self.name,
@@ -214,18 +205,12 @@ impl<A: Agent> AgentRunnerV2<A> {
     }
 
     fn setup_logging(&self) {
-        let filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("info"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
         if self.json_logs {
-            let _ = fmt()
-                .with_env_filter(filter)
-                .json()
-                .try_init();
+            let _ = fmt().with_env_filter(filter).json().try_init();
         } else {
-            let _ = fmt()
-                .with_env_filter(filter)
-                .try_init();
+            let _ = fmt().with_env_filter(filter).try_init();
         }
     }
 
@@ -302,25 +287,15 @@ impl<A: Agent> zentinel_agent_protocol::v2::AgentHandlerV2 for ArcHandler<A> {
     ) -> zentinel_agent_protocol::AgentResponse {
         self.0.on_request_complete(event).await
     }
-
-    async fn on_guardrail_inspect(
-        &self,
-        event: zentinel_agent_protocol::GuardrailInspectEvent,
-    ) -> zentinel_agent_protocol::AgentResponse {
-        self.0.on_guardrail_inspect(event).await
-    }
 }
 
 /// Prelude module for v2 types.
 pub mod prelude {
-    pub use super::{
-        AgentCapabilitiesExt, AgentRunnerV2, TransportConfig,
-    };
+    pub use super::{AgentCapabilitiesExt, AgentRunnerV2, TransportConfig};
     // Re-export all protocol types
     pub use zentinel_agent_protocol::v2::{
-        AgentCapabilities, AgentFeatures, AgentHandlerV2, AgentHandlerV2 as AgentV2,
-        CounterMetric, DrainReason, GaugeMetric, HealthStatus, HistogramMetric,
-        MetricsReport, ShutdownReason,
+        AgentCapabilities, AgentFeatures, AgentHandlerV2, AgentHandlerV2 as AgentV2, CounterMetric,
+        DrainReason, GaugeMetric, HealthStatus, HistogramMetric, MetricsReport, ShutdownReason,
     };
 }
 

@@ -2,8 +2,8 @@
 //!
 //! These types wrap the protocol events with a more ergonomic API.
 
-use zentinel_agent_protocol::RequestHeadersEvent;
 use std::collections::HashMap;
+use zentinel_agent_protocol::RequestHeadersEvent;
 
 /// A simplified view of an HTTP request for agent processing.
 ///
@@ -103,7 +103,9 @@ impl Request {
     ///
     /// Returns the first value if multiple exist.
     pub fn query(&self, name: &str) -> Option<&str> {
-        self.query_params.get(name).and_then(|v| v.first().map(|s| s.as_str()))
+        self.query_params
+            .get(name)
+            .and_then(|v| v.first().map(|s| s.as_str()))
     }
 
     /// Get all values for a query parameter.
@@ -160,8 +162,7 @@ impl Request {
 
     /// Get the Content-Length header as a number.
     pub fn content_length(&self) -> Option<usize> {
-        self.header("content-length")
-            .and_then(|v| v.parse().ok())
+        self.header("content-length").and_then(|v| v.parse().ok())
     }
 
     /// Get the Authorization header.
@@ -195,7 +196,9 @@ impl Request {
 
     /// Parse the request body as JSON.
     pub fn body_json<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
-        self.body.as_ref().and_then(|b| serde_json::from_slice(b).ok())
+        self.body
+            .as_ref()
+            .and_then(|b| serde_json::from_slice(b).ok())
     }
 
     /// Check if the path starts with a prefix.
@@ -267,7 +270,10 @@ mod tests {
     fn make_event(method: &str, uri: &str, headers: Vec<(&str, &str)>) -> RequestHeadersEvent {
         let mut header_map = HashMap::new();
         for (k, v) in headers {
-            header_map.entry(k.to_lowercase()).or_insert_with(Vec::new).push(v.to_string());
+            header_map
+                .entry(k.to_lowercase())
+                .or_insert_with(Vec::new)
+                .push(v.to_string());
         }
 
         RequestHeadersEvent {
@@ -314,7 +320,10 @@ mod tests {
         assert_eq!(req.path_only(), "/search");
         assert_eq!(req.query_string(), Some("q=rust&limit=10&q=programming"));
         assert_eq!(req.query("q"), Some("rust"));
-        assert_eq!(req.query_all("q"), Some(&["rust".to_string(), "programming".to_string()][..]));
+        assert_eq!(
+            req.query_all("q"),
+            Some(&["rust".to_string(), "programming".to_string()][..])
+        );
         assert_eq!(req.query("limit"), Some("10"));
         assert_eq!(req.query("missing"), None);
     }
@@ -345,7 +354,10 @@ mod tests {
         assert_eq!(req.content_type(), Some("application/json"));
         assert_eq!(req.authorization(), Some("Bearer token123"));
         assert_eq!(req.header("X-Custom"), Some("value1")); // Case insensitive
-        assert_eq!(req.header_all("x-custom"), Some(&["value1".to_string(), "value2".to_string()][..]));
+        assert_eq!(
+            req.header_all("x-custom"),
+            Some(&["value1".to_string(), "value2".to_string()][..])
+        );
         assert!(req.has_header("Content-Type"));
         assert!(!req.has_header("X-Missing"));
     }
@@ -353,14 +365,15 @@ mod tests {
     #[test]
     fn test_body() {
         let event = make_event("POST", "/api/data", vec![]);
-        let req = Request::from_headers_event(&event)
-            .with_body(b"{\"name\": \"test\"}".to_vec());
+        let req = Request::from_headers_event(&event).with_body(b"{\"name\": \"test\"}".to_vec());
 
         assert!(req.body().is_some());
         assert_eq!(req.body_str(), Some("{\"name\": \"test\"}"));
 
         #[derive(serde::Deserialize)]
-        struct Data { name: String }
+        struct Data {
+            name: String,
+        }
         let data: Option<Data> = req.body_json();
         assert_eq!(data.map(|d| d.name), Some("test".to_string()));
     }

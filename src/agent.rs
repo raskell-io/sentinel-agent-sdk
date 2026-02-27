@@ -5,14 +5,12 @@
 
 use crate::{Decision, Request, Response};
 use async_trait::async_trait;
-use zentinel_agent_protocol::{
-    AgentResponse, Decision as ProtocolDecision, GuardrailInspectEvent, GuardrailResponse,
-};
-use zentinel_agent_protocol::v2::{AgentCapabilities, AgentHandlerV2, PROTOCOL_VERSION_2};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use zentinel_agent_protocol::v2::{AgentCapabilities, AgentHandlerV2};
+use zentinel_agent_protocol::AgentResponse;
 
 /// A simplified agent trait for processing HTTP traffic.
 ///
@@ -100,18 +98,6 @@ pub trait Agent: Send + Sync + 'static {
     /// * `duration_ms` - Total request processing time in milliseconds
     async fn on_request_complete(&self, request: &Request, status: u16, duration_ms: u64) {
         let _ = (request, status, duration_ms);
-    }
-
-    /// Inspect content for guardrail violations.
-    ///
-    /// Called when content needs to be analyzed for prompt injection
-    /// or PII detection. Override to implement custom guardrail logic.
-    ///
-    /// # Arguments
-    /// * `event` - The guardrail inspection event containing content and parameters
-    async fn on_guardrail_inspect(&self, event: &GuardrailInspectEvent) -> GuardrailResponse {
-        let _ = event;
-        GuardrailResponse::clean()
     }
 }
 
@@ -201,14 +187,14 @@ impl<A: Agent> AgentHandler<A> {
 #[async_trait]
 impl<A: Agent> AgentHandlerV2 for AgentHandler<A> {
     fn capabilities(&self) -> AgentCapabilities {
-        AgentCapabilities::default()
+        AgentCapabilities::new(
+            self.agent.name(),
+            self.agent.name(),
+            env!("CARGO_PKG_VERSION"),
+        )
     }
 
-    async fn on_configure(
-        &self,
-        config: serde_json::Value,
-        _version: Option<String>,
-    ) -> bool {
+    async fn on_configure(&self, config: serde_json::Value, _version: Option<String>) -> bool {
         self.agent.on_configure(config).await.is_ok()
     }
 
@@ -220,7 +206,10 @@ impl<A: Agent> AgentHandlerV2 for AgentHandler<A> {
 
         // Cache the request for later response processing
         let correlation_id = request.correlation_id().to_string();
-        self.request_cache.write().await.insert(correlation_id, request.clone());
+        self.request_cache
+            .write()
+            .await
+            .insert(correlation_id, request.clone());
 
         self.agent.on_request(&request).await.build()
     }
@@ -266,12 +255,18 @@ impl<A: Agent> AgentHandlerV2 for AgentHandler<A> {
         if let Some(request) = cache.get(&event.correlation_id) {
             // Create a minimal response with body
             let body = base64_decode(&event.data).unwrap_or_default();
-            let response = Response::from_headers_event(&zentinel_agent_protocol::ResponseHeadersEvent {
-                correlation_id: event.correlation_id.clone(),
-                status: 200,
-                headers: HashMap::new(),
-            }).with_body(body);
-            return self.agent.on_response_body(request, &response).await.build();
+            let response =
+                Response::from_headers_event(&zentinel_agent_protocol::ResponseHeadersEvent {
+                    correlation_id: event.correlation_id.clone(),
+                    status: 200,
+                    headers: HashMap::new(),
+                })
+                .with_body(body);
+            return self
+                .agent
+                .on_response_body(request, &response)
+                .await
+                .build();
         }
         AgentResponse::default_allow()
     }
@@ -281,64 +276,20 @@ impl<A: Agent> AgentHandlerV2 for AgentHandler<A> {
         event: zentinel_agent_protocol::RequestCompleteEvent,
     ) -> AgentResponse {
         // Get cached request for the callback
-        let request = self.request_cache.write().await.remove(&event.correlation_id);
+        let request = self
+            .request_cache
+            .write()
+            .await
+            .remove(&event.correlation_id);
 
         // Call the agent's on_request_complete hook if we have request context
         if let Some(request) = request {
-            self.agent.on_request_complete(
-                &request,
-                event.status,
-                event.duration_ms,
-            ).await;
+            self.agent
+                .on_request_complete(&request, event.status, event.duration_ms)
+                .await;
         }
 
         AgentResponse::default_allow()
-    }
-
-    async fn on_guardrail_inspect(
-        &self,
-        event: GuardrailInspectEvent,
-    ) -> AgentResponse {
-        let response = self.agent.on_guardrail_inspect(&event).await;
-
-        // Build response with guardrail_response in audit.custom
-        let tags = if response.detected {
-            vec!["guardrail_detected".to_string()]
-        } else {
-            vec![]
-        };
-
-        let rule_ids: Vec<String> = response
-            .detections
-            .iter()
-            .map(|d| d.category.clone())
-            .collect();
-
-        AgentResponse {
-            version: PROTOCOL_VERSION_2,
-            decision: ProtocolDecision::Allow,
-            request_headers: vec![],
-            response_headers: vec![],
-            routing_metadata: HashMap::new(),
-            audit: zentinel_agent_protocol::AuditMetadata {
-                tags,
-                rule_ids,
-                confidence: Some(response.confidence as f32),
-                reason_codes: vec![],
-                custom: {
-                    let mut custom = HashMap::new();
-                    custom.insert(
-                        "guardrail_response".to_string(),
-                        serde_json::to_value(&response).unwrap_or_default(),
-                    );
-                    custom
-                },
-            },
-            needs_more: false,
-            request_body_mutation: None,
-            response_body_mutation: None,
-            websocket_decision: None,
-        }
     }
 }
 
@@ -346,7 +297,8 @@ impl<A: Agent> AgentHandlerV2 for AgentHandler<A> {
 fn base64_decode(s: &str) -> Option<Vec<u8>> {
     use std::io::Read;
     let bytes = s.as_bytes();
-    let mut decoder = base64::read::DecoderReader::new(bytes, &base64::engine::general_purpose::STANDARD);
+    let mut decoder =
+        base64::read::DecoderReader::new(bytes, &base64::engine::general_purpose::STANDARD);
     let mut result = Vec::new();
     decoder.read_to_end(&mut result).ok()?;
     Some(result)
@@ -449,6 +401,9 @@ mod tests {
 
         // Verify the callback was invoked
         assert_eq!(handler.agent().completed_status.load(Ordering::SeqCst), 200);
-        assert_eq!(handler.agent().completed_duration.load(Ordering::SeqCst), 42);
+        assert_eq!(
+            handler.agent().completed_duration.load(Ordering::SeqCst),
+            42
+        );
     }
 }

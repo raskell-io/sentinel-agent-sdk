@@ -12,10 +12,10 @@
 //! }
 //! ```
 
-use zentinel_agent_sdk::prelude::*;
 use serde::Deserialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;
+use zentinel_agent_sdk::prelude::*;
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -31,8 +31,12 @@ struct RateCheckerConfig {
     block_mode: bool,
 }
 
-fn default_rate_limit() -> u32 { 100 }
-fn default_burst() -> u32 { 10 }
+fn default_rate_limit() -> u32 {
+    100
+}
+fn default_burst() -> u32 {
+    10
+}
 
 struct RateCheckerAgent {
     config: RwLock<RateCheckerConfig>,
@@ -55,8 +59,8 @@ impl Agent for RateCheckerAgent {
     }
 
     async fn on_configure(&self, config_json: serde_json::Value) -> Result<(), String> {
-        let config: RateCheckerConfig = serde_json::from_value(config_json)
-            .map_err(|e| format!("Invalid config: {}", e))?;
+        let config: RateCheckerConfig =
+            serde_json::from_value(config_json).map_err(|e| format!("Invalid config: {}", e))?;
 
         tracing::info!(
             rate_limit = config.rate_limit,
@@ -93,8 +97,7 @@ impl Agent for RateCheckerAgent {
             }
         }
 
-        Decision::allow()
-            .with_metadata("request_count", serde_json::json!(count))
+        Decision::allow().with_metadata("request_count", serde_json::json!(count))
     }
 }
 

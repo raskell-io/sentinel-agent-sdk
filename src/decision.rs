@@ -2,9 +2,11 @@
 //!
 //! Provides an ergonomic way to construct agent responses.
 
-use zentinel_agent_protocol::{AgentResponse, AuditMetadata, BodyMutation, Decision as ProtocolDecision, HeaderOp};
-use zentinel_agent_protocol::v2::PROTOCOL_VERSION_2;
 use std::collections::HashMap;
+use zentinel_agent_protocol::v2::PROTOCOL_VERSION_2;
+use zentinel_agent_protocol::{
+    AgentResponse, AuditMetadata, BodyMutation, Decision as ProtocolDecision, HeaderOp,
+};
 
 /// A builder for constructing agent decisions.
 ///
@@ -140,10 +142,7 @@ impl Decision {
     /// params.insert("site_key".to_string(), "abc123".to_string());
     /// let decision = Decision::challenge("captcha", params);
     /// ```
-    pub fn challenge(
-        challenge_type: impl Into<String>,
-        params: HashMap<String, String>,
-    ) -> Self {
+    pub fn challenge(challenge_type: impl Into<String>, params: HashMap<String, String>) -> Self {
         Self {
             decision: DecisionType::Challenge {
                 challenge_type: challenge_type.into(),
@@ -188,7 +187,11 @@ impl Decision {
     }
 
     /// Add a header to the response (sent to client).
-    pub fn add_response_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn add_response_header(
+        mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
         self.add_response_headers.insert(name.into(), value.into());
         self
     }
@@ -212,7 +215,11 @@ impl Decision {
     }
 
     /// Add custom metadata for logging/tracing.
-    pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<serde_json::Value>) -> Self {
+    pub fn with_metadata(
+        mut self,
+        key: impl Into<String>,
+        value: impl Into<serde_json::Value>,
+    ) -> Self {
         self.custom_metadata.insert(key.into(), value.into());
         self
     }
@@ -249,14 +256,19 @@ impl Decision {
 
     /// Add multiple reason codes.
     pub fn with_reason_codes(mut self, codes: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.reason_codes.extend(codes.into_iter().map(|c| c.into()));
+        self.reason_codes
+            .extend(codes.into_iter().map(|c| c.into()));
         self
     }
 
     /// Add routing metadata for upstream selection/load balancing.
     ///
     /// This metadata can influence how the proxy routes the request.
-    pub fn with_routing_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn with_routing_metadata(
+        mut self,
+        key: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
         self.routing_metadata.insert(key.into(), value.into());
         self
     }
@@ -302,7 +314,10 @@ impl Decision {
                 url: url.clone(),
                 status: self.status_code.unwrap_or(302),
             },
-            DecisionType::Challenge { challenge_type, params } => ProtocolDecision::Challenge {
+            DecisionType::Challenge {
+                challenge_type,
+                params,
+            } => ProtocolDecision::Challenge {
                 challenge_type: challenge_type.clone(),
                 params: params.clone(),
             },
@@ -408,7 +423,10 @@ pub mod decisions {
     }
 
     /// Challenge with type and parameters.
-    pub fn challenge(challenge_type: impl Into<String>, params: HashMap<String, String>) -> AgentResponse {
+    pub fn challenge(
+        challenge_type: impl Into<String>,
+        params: HashMap<String, String>,
+    ) -> AgentResponse {
         Decision::challenge(challenge_type, params).build()
     }
 }
@@ -425,9 +443,7 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let response = Decision::block(403)
-            .with_body("Access denied")
-            .build();
+        let response = Decision::block(403).with_body("Access denied").build();
 
         match &response.decision {
             ProtocolDecision::Block { status, body, .. } => {
@@ -488,10 +504,16 @@ mod tests {
     #[test]
     fn test_json_body() {
         #[derive(serde::Serialize)]
-        struct Error { code: u16, message: String }
+        struct Error {
+            code: u16,
+            message: String,
+        }
 
         let response = Decision::block(400)
-            .with_json_body(&Error { code: 400, message: "Bad request".into() })
+            .with_json_body(&Error {
+                code: 400,
+                message: "Bad request".into(),
+            })
             .build();
 
         match &response.decision {
@@ -516,9 +538,7 @@ mod tests {
 
     #[test]
     fn test_confidence() {
-        let response = Decision::deny()
-            .with_confidence(0.95)
-            .build();
+        let response = Decision::deny().with_confidence(0.95).build();
 
         assert_eq!(response.audit.confidence, Some(0.95_f32));
 
@@ -538,7 +558,10 @@ mod tests {
             .build();
 
         assert_eq!(response.audit.reason_codes.len(), 3);
-        assert!(response.audit.reason_codes.contains(&"POLICY_VIOLATION".to_string()));
+        assert!(response
+            .audit
+            .reason_codes
+            .contains(&"POLICY_VIOLATION".to_string()));
     }
 
     #[test]
@@ -549,14 +572,15 @@ mod tests {
             .build();
 
         assert_eq!(response.routing_metadata.len(), 2);
-        assert_eq!(response.routing_metadata.get("upstream"), Some(&"backend-v2".to_string()));
+        assert_eq!(
+            response.routing_metadata.get("upstream"),
+            Some(&"backend-v2".to_string())
+        );
     }
 
     #[test]
     fn test_needs_more_data() {
-        let response = Decision::allow()
-            .needs_more_data()
-            .build();
+        let response = Decision::allow().needs_more_data().build();
 
         assert!(response.needs_more);
 
@@ -568,8 +592,14 @@ mod tests {
     #[test]
     fn test_body_mutations() {
         let response = Decision::allow()
-            .with_request_body_mutation(BodyMutation::replace(0, "modified request body".to_string()))
-            .with_response_body_mutation(BodyMutation::replace(0, "modified response body".to_string()))
+            .with_request_body_mutation(BodyMutation::replace(
+                0,
+                "modified request body".to_string(),
+            ))
+            .with_response_body_mutation(BodyMutation::replace(
+                0,
+                "modified response body".to_string(),
+            ))
             .build();
 
         assert!(response.request_body_mutation.is_some());
@@ -580,7 +610,10 @@ mod tests {
         assert_eq!(req_mutation.chunk_index, 0);
 
         let resp_mutation = response.response_body_mutation.unwrap();
-        assert_eq!(resp_mutation.data, Some("modified response body".to_string()));
+        assert_eq!(
+            resp_mutation.data,
+            Some("modified response body".to_string())
+        );
     }
 
     #[test]
@@ -630,7 +663,10 @@ mod tests {
         let response = Decision::challenge("captcha", params).build();
 
         match &response.decision {
-            ProtocolDecision::Challenge { challenge_type, params } => {
+            ProtocolDecision::Challenge {
+                challenge_type,
+                params,
+            } => {
                 assert_eq!(challenge_type, "captcha");
                 assert_eq!(params.get("site_key"), Some(&"abc123".to_string()));
             }
@@ -643,7 +679,10 @@ mod tests {
         let response = Decision::challenge("js_challenge", HashMap::new()).build();
 
         match &response.decision {
-            ProtocolDecision::Challenge { challenge_type, params } => {
+            ProtocolDecision::Challenge {
+                challenge_type,
+                params,
+            } => {
                 assert_eq!(challenge_type, "js_challenge");
                 assert!(params.is_empty());
             }

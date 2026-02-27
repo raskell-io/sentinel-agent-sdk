@@ -57,9 +57,7 @@ fn to_kebab_case(s: &str) -> String {
     result
 }
 
-fn impl_agent_config(
-    input: &DeriveInput,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn impl_agent_config(input: &DeriveInput) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &input.ident;
 
     let fields = match &input.data {
